@@ -1,5 +1,6 @@
-import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { memo, useMemo, useRef } from 'react';
+import type { RefObject } from 'react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { RepeatIcon } from '@/components/ui/Icon';
 import { useCategoryMap, useVisibleTransactions } from '@/hooks/useDerivedData';
@@ -65,8 +66,13 @@ export const TransactionRow = memo(function TransactionRow({
   );
 });
 
-/** Lista de movimientos agrupada por día y virtualizada (scroll de ventana). */
-export function TransactionList() {
+interface TransactionListProps {
+  /** Contenedor con scroll propio (`.home-scroll`) sobre el que virtualizar. */
+  scrollContainerRef: RefObject<HTMLDivElement | null>;
+}
+
+/** Lista de movimientos agrupada por día y virtualizada sobre el scroll de la pantalla. */
+export function TransactionList({ scrollContainerRef }: TransactionListProps) {
   const txs = useVisibleTransactions();
   const categoryMap = useCategoryMap();
   const txType = useUiStore((s) => s.txType);
@@ -86,8 +92,9 @@ export function TransactionList() {
     return out;
   }, [txs]);
 
-  const virtualizer = useWindowVirtualizer({
+  const virtualizer = useVirtualizer({
     count: rows.length,
+    getScrollElement: () => scrollContainerRef.current,
     estimateSize: (i) => (rows[i].kind === 'header' ? HEADER_HEIGHT : ROW_HEIGHT),
     overscan: 12,
     scrollMargin: listRef.current?.offsetTop ?? 0,

@@ -6,9 +6,13 @@ import { haptics } from '@/services/haptics';
 import { useUiStore } from '@/store/useUiStore';
 import { formatCompact, formatMoney } from '@/utils/money';
 
-/** Color uniforme de las barras: oscuro pero visible sobre el fondo negro. */
-const BAR_GRADIENT = 'linear-gradient(to top, #2C2C2E, #545458)';
-const BAR_GRADIENT_SELECTED = 'linear-gradient(to top, #3A3A3D, #68686D)';
+/** Color plano uniforme de las barras: oscuro pero visible sobre el fondo negro. */
+const BAR_COLOR = '#3A3A3D';
+const BAR_COLOR_SELECTED = '#54545A';
+
+/** Alto máximo de pista y alto mínimo (para que emoji + monto siempre quepan dentro). */
+const TRACK_HEIGHT = 240;
+const MIN_BAR_HEIGHT = 88;
 
 /** Gráfico de barras verticales por categoría, ordenado de mayor a menor. */
 export const CategoryChart = memo(function CategoryChart() {
@@ -43,7 +47,7 @@ export const CategoryChart = memo(function CategoryChart() {
       <div className="chart-scroll" role="list" aria-label="Categorías">
         {totals.map(({ category, total }) => {
           const isSelected = category.id === selectedId;
-          const height = Math.max(0.06, total / max);
+          const barHeight = Math.max(MIN_BAR_HEIGHT, (total / max) * TRACK_HEIGHT);
           return (
             <button
               key={category.id}
@@ -55,26 +59,26 @@ export const CategoryChart = memo(function CategoryChart() {
                 setSelectedId(isSelected ? null : category.id);
               }}
             >
-              <div className="bar-track">
+              <div className="bar-track" style={{ height: TRACK_HEIGHT }}>
                 <motion.div
                   className="bar"
-                  initial={{ scaleY: 0 }}
+                  initial={{ height: 0 }}
                   animate={{
-                    scaleY: height,
+                    height: barHeight,
                     opacity: selectedId && !isSelected ? 0.4 : 1,
                   }}
-                  whileTap={{ scaleX: 0.85 }}
+                  whileTap={{ scale: 0.96 }}
                   transition={{ type: 'spring', damping: 26, stiffness: 220 }}
                   style={{
-                    height: '100%',
-                    background: isSelected ? BAR_GRADIENT_SELECTED : BAR_GRADIENT,
+                    background: isSelected ? BAR_COLOR_SELECTED : BAR_COLOR,
                     boxShadow: isSelected ? '0 0 16px rgba(245, 73, 39, 0.3)' : undefined,
                     outline: isSelected ? '1.5px solid var(--accent)' : undefined,
                   }}
-                />
+                >
+                  <span className="bar-emoji-plain">{category.emoji}</span>
+                  <span className="bar-amount">{formatCompact(total)}</span>
+                </motion.div>
               </div>
-              <span className="bar-emoji-plain">{category.emoji}</span>
-              <span className="bar-amount">{formatCompact(total)}</span>
             </button>
           );
         })}
