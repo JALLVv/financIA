@@ -11,13 +11,16 @@
   align-items: baseline;
   justify-content: center;
   gap: 4px;
-  padding: 10px 0 2px;
+  padding: 10px 16px 2px;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .amount-entry .currency {
   font-size: 28px;
   font-weight: 600;
   color: var(--label-2);
+  flex-shrink: 0;
 }
 
 .amount-entry input {
@@ -28,11 +31,14 @@
   font-size: 46px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  width: 100%;
-  max-width: 240px;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  flex: 0 1 auto;
   text-align: left;
   caret-color: var(--accent);
   font-variant-numeric: tabular-nums;
+  transition: font-size 0.15s var(--ease-ios);
   font-family: var(--font);
 }
 

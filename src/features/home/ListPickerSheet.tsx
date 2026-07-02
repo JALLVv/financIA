@@ -40,18 +40,16 @@ export function ListPickerSheet() {
               close();
             }}
           >
-            <span>{list.name}</span>
+            <span className="list-name-text">{list.name}</span>
             <span
               className="list-balance"
               style={{ color: balance < 0 ? 'var(--red)' : balance > 0 ? 'var(--green)' : undefined }}
             >
               {balance === 0 ? '—' : formatSignedMoney(balance)}
             </span>
-            {selected && (
-              <span className="list-check">
-                <CheckIcon size={17} />
-              </span>
-            )}
+            <span className={`list-marker ${selected ? 'selected' : ''}`} aria-hidden>
+              {selected && <CheckIcon size={12} strokeWidth={3} />}
+            </span>
           </button>
         );
       })}
