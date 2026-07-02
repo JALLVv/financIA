@@ -113,7 +113,10 @@ button {
 }
 
 #root {
-  height: 100dvh;
+  /* --app-height la fija useAppHeight() con window.visualViewport.height,
+     que sí se actualiza correctamente cuando el teclado de iOS aparece
+     (a diferencia de 100dvh en algunas versiones de Safari). */
+  height: var(--app-height, 100dvh);
   overflow: hidden;
 }
 
