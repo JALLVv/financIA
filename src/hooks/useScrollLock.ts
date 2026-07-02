@@ -1,38 +1,25 @@
 import { useEffect } from 'react';
 
 let lockCount = 0;
-let savedScrollY = 0;
 
 /**
- * Bloquea el scroll del documento mientras `active` sea true. Soporta
- * bloqueos anidados (varios sheets abiertos a la vez) mediante un contador
- * compartido. Sin esto, iOS Safari desplaza toda la página al enfocar un
- * input dentro de un sheet, produciendo el salto brusco hacia arriba.
+ * Bloquea el scroll del contenedor principal (`.home-scroll`) mientras
+ * `active` sea true. Soporta bloqueos anidados (varios sheets abiertos a la
+ * vez) mediante un contador compartido.
+ *
+ * El documento (html/body) nunca es scrollable — ver global.css — así que
+ * esto es solo una defensa extra contra "scroll bleed" detrás de un sheet
+ * abierto; no depende de guardar/restaurar posiciones de scroll.
  */
 export function useScrollLock(active: boolean) {
   useEffect(() => {
     if (!active) return;
     lockCount += 1;
-    if (lockCount === 1) {
-      savedScrollY = window.scrollY;
-      const { style } = document.body;
-      style.position = 'fixed';
-      style.top = `-${savedScrollY}px`;
-      style.left = '0';
-      style.right = '0';
-      style.width = '100%';
-    }
+    const target = document.querySelector<HTMLElement>('.home-scroll');
+    if (lockCount === 1 && target) target.style.overflowY = 'hidden';
     return () => {
       lockCount -= 1;
-      if (lockCount === 0) {
-        const { style } = document.body;
-        style.position = '';
-        style.top = '';
-        style.left = '';
-        style.right = '';
-        style.width = '';
-        window.scrollTo(0, savedScrollY);
-      }
+      if (lockCount === 0 && target) target.style.overflowY = '';
     };
   }, [active]);
 }

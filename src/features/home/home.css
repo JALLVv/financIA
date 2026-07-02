@@ -1,11 +1,23 @@
 /* ============ Pantalla principal ============ */
 
 .home {
-  min-height: 100dvh;
-  padding-bottom: calc(120px + var(--safe-bottom));
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   background:
     radial-gradient(120% 50% at 50% -10%, rgba(245, 73, 39, 0.09), transparent 60%),
     var(--bg);
+}
+
+/* Único contenedor que realmente hace scroll: el documento permanece fijo
+   (ver global.css), así el teclado nunca desplaza la página completa. */
+.home-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding-bottom: calc(120px + var(--safe-bottom));
 }
 
 /* Barra superior */
@@ -126,13 +138,24 @@
   white-space: nowrap;
 }
 
-/* Selector tipo (gastos / ingresos) */
+/* Selector tipo (gastos / ingresos): compacto y centrado, no ocupa todo el ancho */
 .type-selector-wrap {
-  padding: 18px var(--pad-screen) 0;
+  display: flex;
+  justify-content: center;
+  padding: 16px var(--pad-screen) 0;
+}
+
+.type-selector-wrap .segmented {
+  width: 100%;
+  max-width: 200px;
+}
+
+.type-selector-wrap .segment {
+  padding: 9px 8px;
 }
 
 .type-total {
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -260,36 +283,29 @@
 /* ============ Gráfico ============ */
 
 .chart-card {
-  margin: 18px var(--pad-screen) 0;
-  border-radius: var(--r-lg);
-  padding: 20px 14px 14px;
-  background: var(--surface);
-  border: 0.5px solid rgba(255, 255, 255, 0.05);
+  margin: 18px 0 0;
+  padding: 4px 0 0;
   overflow: hidden;
 }
 
 .chart-scroll {
   display: flex;
   align-items: flex-end;
-  gap: 18px;
+  gap: 14px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 8px 8px 2px;
-  min-height: 300px;
+  padding: 8px var(--pad-screen) 2px;
+  min-height: 256px;
 }
 
 .chart-col {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
   flex-shrink: 0;
-  width: 68px;
+  width: 64px;
 }
 
 .chart-col .bar-track {
-  width: 50px;
-  height: 230px;
+  width: 100%;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -297,25 +313,31 @@
 
 .chart-col .bar {
   width: 100%;
-  border-radius: 12px 12px 6px 6px;
+  border-radius: 20px;
   min-height: 6px;
-  transform-origin: bottom;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 10px 4px 12px;
+  overflow: hidden;
 }
 
 .chart-col .bar-emoji-plain {
-  font-size: 22px;
+  font-size: 21px;
   line-height: 1;
 }
 
 .chart-col .bar-amount {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--label-2);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: rgba(235, 235, 245, 0.7);
   font-variant-numeric: tabular-nums;
 }
 
 .chart-detail {
-  margin-top: 10px;
+  margin: 10px var(--pad-screen) 0;
   padding: 12px 14px;
   border-radius: var(--r-md);
   background: var(--surface-2);

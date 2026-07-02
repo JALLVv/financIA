@@ -1,5 +1,17 @@
 /* ============ FinancIA — Design tokens (iOS dark) ============ */
 
+/* Fuente redondeada auto-hospedada (Nunito, SIL OFL): garantiza la misma
+   apariencia en cualquier navegador. En iOS/Safari se prioriza SF Pro
+   Rounded nativa (ui-rounded) y esta queda como respaldo consistente. */
+@font-face {
+  font-family: 'Nunito Variable';
+  src: url('./fonts/Nunito-Variable.woff2') format('woff2-variations'),
+    url('./fonts/Nunito-Variable.woff2') format('woff2');
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
 
@@ -43,9 +55,10 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 
-  /* Tipografía: ui-rounded resuelve a SF Pro Rounded en dispositivos Apple */
-  --font: ui-rounded, -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', 'SF Pro Display',
-    'SF Pro Text', 'Helvetica Neue', system-ui, 'Segoe UI', Roboto, sans-serif;
+  /* Tipografía: ui-rounded resuelve a SF Pro Rounded en Apple; Nunito Variable
+     (auto-hospedada) asegura el mismo look redondeado en cualquier otro navegador. */
+  --font: ui-rounded, -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', 'Nunito Variable',
+    system-ui, 'Segoe UI', Roboto, sans-serif;
 
   --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
 }
@@ -62,6 +75,11 @@ body {
   height: 100%;
   background: var(--bg);
   overscroll-behavior-y: none;
+  /* El documento nunca se desplaza: el scroll vive dentro de contenedores
+     dedicados (.home-scroll, .sheet-content). Esto evita que el teclado de
+     iOS desplace la página entera al enfocar un input, y que el navegador
+     quede "atrapado" a media pantalla al reaparecer la barra de Safari. */
+  overflow: hidden;
 }
 
 body {
@@ -95,7 +113,8 @@ button {
 }
 
 #root {
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 ::-webkit-scrollbar {

@@ -13,7 +13,6 @@ export function TypeSelector() {
   return (
     <div className="type-selector-wrap">
       <SegmentedControl<TxType>
-        size="large"
         value={txType}
         onChange={setTxType}
         segments={[

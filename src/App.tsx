@@ -48,7 +48,12 @@ export default function App() {
           />
         </motion.div>
       ) : (
-        <motion.div key="app" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <motion.div
+          key="app"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          style={{ height: '100%' }}
+        >
           <HomeScreen />
           <SearchScreen />
           <ProfileScreen />
