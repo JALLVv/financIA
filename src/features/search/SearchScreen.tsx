@@ -192,7 +192,6 @@ export function SearchScreen() {
       <div className="search-results">
         {results.length === 0 ? (
           <EmptyState
-            icon="🔍"
             title={hasActiveFilters ? 'Sin resultados' : 'Busca tus movimientos'}
             subtitle={
               hasActiveFilters

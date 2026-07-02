@@ -6,6 +6,10 @@ import { haptics } from '@/services/haptics';
 import { useUiStore } from '@/store/useUiStore';
 import { formatCompact, formatMoney } from '@/utils/money';
 
+/** Color uniforme de las barras: oscuro pero visible sobre el fondo negro. */
+const BAR_GRADIENT = 'linear-gradient(to top, #2C2C2E, #545458)';
+const BAR_GRADIENT_SELECTED = 'linear-gradient(to top, #3A3A3D, #68686D)';
+
 /** Gráfico de barras verticales por categoría, ordenado de mayor a menor. */
 export const CategoryChart = memo(function CategoryChart() {
   const totals = useCategoryTotals();
@@ -23,7 +27,6 @@ export const CategoryChart = memo(function CategoryChart() {
     return (
       <div className="chart-card">
         <EmptyState
-          icon={txType === 'expense' ? '📊' : '💸'}
           title={txType === 'expense' ? 'Sin gastos en este período' : 'Sin ingresos en este período'}
           subtitle="Toca el botón + para agregar tu primer movimiento."
         />
@@ -52,27 +55,26 @@ export const CategoryChart = memo(function CategoryChart() {
                 setSelectedId(isSelected ? null : category.id);
               }}
             >
-              <span className="bar-amount">{formatCompact(total)}</span>
               <div className="bar-track">
                 <motion.div
                   className="bar"
                   initial={{ scaleY: 0 }}
                   animate={{
                     scaleY: height,
-                    opacity: selectedId && !isSelected ? 0.35 : 1,
+                    opacity: selectedId && !isSelected ? 0.4 : 1,
                   }}
                   whileTap={{ scaleX: 0.85 }}
                   transition={{ type: 'spring', damping: 26, stiffness: 220 }}
                   style={{
                     height: '100%',
-                    background: `linear-gradient(to top, ${category.color}cc, ${category.color})`,
-                    boxShadow: isSelected ? `0 0 18px ${category.color}66` : undefined,
+                    background: isSelected ? BAR_GRADIENT_SELECTED : BAR_GRADIENT,
+                    boxShadow: isSelected ? '0 0 16px rgba(245, 73, 39, 0.3)' : undefined,
+                    outline: isSelected ? '1.5px solid var(--accent)' : undefined,
                   }}
                 />
               </div>
-              <span className="bar-emoji" style={{ background: `${category.color}26` }}>
-                {category.emoji}
-              </span>
+              <span className="bar-emoji-plain">{category.emoji}</span>
+              <span className="bar-amount">{formatCompact(total)}</span>
             </button>
           );
         })}

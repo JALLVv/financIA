@@ -15,6 +15,15 @@ import './transaction.css';
 
 type FrequencyChoice = Frequency | 'none';
 
+/** Reduce el tamaño de fuente del monto a medida que crece en dígitos, para que nunca se corte. */
+function amountFontSize(raw: string): number {
+  const digits = raw.replace(/[^\d]/g, '').length;
+  if (digits > 9) return 30;
+  if (digits > 7) return 36;
+  if (digits > 5) return 42;
+  return 46;
+}
+
 /**
  * Sheet para agregar/editar un movimiento. También maneja reglas
  * recurrentes: crear (desde el perfil o eligiendo repetición) y editar.
@@ -159,11 +168,12 @@ export function AddTransactionSheet() {
               aria-label="Monto"
               value={amountStr}
               autoFocus={!editingTx && !editingRule}
+              size={Math.max(1, amountStr.length)}
               onChange={(e) => {
                 const v = e.target.value.replace(/[^\d.,]/g, '');
                 setAmountStr(v);
               }}
-              style={{ width: `${Math.max(1.2, amountStr.length * 0.62 + 0.6)}ch` }}
+              style={{ fontSize: amountFontSize(amountStr) }}
             />
           </div>
 

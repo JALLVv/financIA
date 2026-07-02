@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
+import { useScrollLock } from '@/hooks/useScrollLock';
 import './Sheet.css';
 
 interface SheetProps {
@@ -20,6 +21,8 @@ const spring = { type: 'spring', damping: 32, stiffness: 340, mass: 0.9 } as con
 
 /** Bottom sheet estilo iOS con drag-to-dismiss, blur y esquinas continuas. */
 export function Sheet({ open, onClose, children, title, headerAction, full, z = 100 }: SheetProps) {
+  useScrollLock(open);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {

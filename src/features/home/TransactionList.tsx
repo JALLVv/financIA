@@ -98,7 +98,6 @@ export function TransactionList() {
     return (
       <div className="txlist">
         <EmptyState
-          icon={txType === 'expense' ? '🧾' : '🪙'}
           title="Sin movimientos"
           subtitle={`Aún no hay ${
             txType === 'expense' ? 'gastos' : 'ingresos'

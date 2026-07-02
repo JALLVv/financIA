@@ -9,7 +9,7 @@ export function BalanceHeader() {
 
   return (
     <section className="balance-block" aria-label="Balance actual">
-      <div className="balance-caption">Balance actual</div>
+      <div className="balance-caption">Total</div>
       <div className="balance-row">
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div

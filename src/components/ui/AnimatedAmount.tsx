@@ -1,5 +1,5 @@
-import { animate, motion, useMotionValue } from 'framer-motion';
-import { memo, useEffect, useRef, useState } from 'react';
+import { animate, motion, useMotionValue, useMotionValueEvent } from 'framer-motion';
+import { memo, useEffect, useRef } from 'react';
 
 interface AnimatedAmountProps {
   value: number;
@@ -9,7 +9,9 @@ interface AnimatedAmountProps {
 
 /**
  * Número que anima su valor con un spring (contador animado) y hace un
- * pequeño pulso de escala en cada cambio.
+ * pequeño pulso de escala en cada cambio. El texto se escribe directamente
+ * en el DOM (sin pasar por estado de React) para no re-renderizar en cada
+ * frame del spring — así la animación se mantiene a 60fps.
  */
 export const AnimatedAmount = memo(function AnimatedAmount({
   value,
@@ -17,39 +19,41 @@ export const AnimatedAmount = memo(function AnimatedAmount({
   className,
 }: AnimatedAmountProps) {
   const mv = useMotionValue(value);
-  const [display, setDisplay] = useState(value);
+  const scale = useMotionValue(1);
+  const spanRef = useRef<HTMLSpanElement>(null);
   const first = useRef(true);
-  const [pulseKey, setPulseKey] = useState(0);
+
+  useMotionValueEvent(mv, 'change', (v) => {
+    if (spanRef.current) spanRef.current.textContent = format(v);
+  });
 
   useEffect(() => {
     if (first.current) {
       first.current = false;
       mv.set(value);
-      setDisplay(value);
+      if (spanRef.current) spanRef.current.textContent = format(value);
       return;
     }
-    setPulseKey((k) => k + 1);
-    const controls = animate(mv, value, {
+    const valueControls = animate(mv, value, {
       type: 'spring',
       damping: 34,
       stiffness: 180,
       mass: 1,
     });
-    return () => controls.stop();
-  }, [value, mv]);
-
-  useEffect(() => mv.on('change', (v) => setDisplay(v)), [mv]);
+    scale.set(0.96);
+    const scaleControls = animate(scale, 1, { type: 'spring', damping: 14, stiffness: 260 });
+    return () => {
+      valueControls.stop();
+      scaleControls.stop();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
 
   return (
     <motion.span
-      key={pulseKey}
+      ref={spanRef}
       className={className}
-      initial={pulseKey === 0 ? false : { scale: 0.96 }}
-      animate={{ scale: 1 }}
-      transition={{ type: 'spring', damping: 14, stiffness: 260 }}
-      style={{ display: 'inline-block' }}
-    >
-      {format(display)}
-    </motion.span>
+      style={{ display: 'inline-block', scale }}
+    />
   );
 });

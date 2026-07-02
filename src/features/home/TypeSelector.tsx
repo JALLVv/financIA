@@ -20,23 +20,17 @@ export function TypeSelector() {
           {
             value: 'expense',
             label: (
-              <>
-                <span className="type-name">Gastos</span>
-                <span className="type-total expense tabular">
-                  −<AnimatedAmount value={expense} format={(v) => formatMoney(v, { compactInt: true })} />
-                </span>
-              </>
+              <span className="type-total expense tabular">
+                −<AnimatedAmount value={expense} format={(v) => formatMoney(v, { compactInt: true })} />
+              </span>
             ),
           },
           {
             value: 'income',
             label: (
-              <>
-                <span className="type-name">Ingresos</span>
-                <span className="type-total income tabular">
-                  +<AnimatedAmount value={income} format={(v) => formatMoney(v, { compactInt: true })} />
-                </span>
-              </>
+              <span className="type-total income tabular">
+                +<AnimatedAmount value={income} format={(v) => formatMoney(v, { compactInt: true })} />
+              </span>
             ),
           },
         ]}
