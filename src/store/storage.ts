@@ -1,0 +1,13 @@
+import { get, set, del } from 'idb-keyval';
+import type { StateStorage } from 'zustand/middleware';
+
+/** Adaptador de IndexedDB para el middleware `persist` de zustand. */
+export const idbStorage: StateStorage = {
+  getItem: async (name) => (await get<string>(name)) ?? null,
+  setItem: async (name, value) => {
+    await set(name, value);
+  },
+  removeItem: async (name) => {
+    await del(name);
+  },
+};
