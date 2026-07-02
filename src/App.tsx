@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect } from 'react';
+import { useAppHeight } from '@/hooks/useAppHeight';
 import { HomeScreen } from '@/features/home/HomeScreen';
 import { ListPickerSheet } from '@/features/home/ListPickerSheet';
 import { PeriodSheet } from '@/features/home/PeriodSelector';
@@ -12,6 +13,8 @@ import { useFinanceStore } from '@/store/useFinanceStore';
 export default function App() {
   const hydrated = useFinanceStore((s) => s.hydrated);
   const runRecurrence = useFinanceStore((s) => s.runRecurrence);
+
+  useAppHeight();
 
   // Genera recurrentes pendientes al volver a la app (cambio de día incluido).
   useEffect(() => {
@@ -30,14 +33,14 @@ export default function App() {
           exit={{ opacity: 0, scale: 1.04 }}
           transition={{ duration: 0.35 }}
           style={{
-            minHeight: '100dvh',
+            height: 'var(--app-height, 100dvh)',
             display: 'grid',
             placeItems: 'center',
             background: 'var(--bg)',
           }}
         >
           <motion.img
-            src="/icon.svg"
+            src={`${import.meta.env.BASE_URL}icon.svg`}
             alt="FinancIA"
             width={84}
             height={84}

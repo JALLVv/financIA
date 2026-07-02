@@ -14,10 +14,13 @@
   margin: 0 auto;
   width: 100%;
   max-width: 560px;
-  max-height: calc(100dvh - var(--safe-top) - 32px);
-  background: rgba(24, 24, 26, 0.96);
-  -webkit-backdrop-filter: blur(22px) saturate(1.5);
-  backdrop-filter: blur(22px) saturate(1.5);
+  max-height: calc(var(--app-height, 100dvh) - var(--safe-top) - 32px);
+  /* Sin backdrop-filter aquí a propósito: este panel se arrastra (drag) y
+     anima su posición constantemente; recomponer un blur en cada frame es
+     lo más caro que existe para el GPU en iPhones no-Pro y es la causa
+     más probable de que el gesto se sienta entrecortado. El efecto glass
+     ya lo aporta el fondo casi opaco + el backdrop estático de abajo. */
+  background: rgb(23, 23, 26);
   border-radius: var(--r-xl) var(--r-xl) 0 0;
   border-top: 0.5px solid var(--glass-border);
   box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.6);
@@ -29,7 +32,7 @@
 }
 
 .sheet-full {
-  height: calc(100dvh - var(--safe-top) - 12px);
+  height: calc(var(--app-height, 100dvh) - var(--safe-top) - 12px);
 }
 
 .sheet-grabber {
