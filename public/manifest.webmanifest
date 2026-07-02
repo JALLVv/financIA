@@ -2,19 +2,20 @@
   "name": "FinancIA",
   "short_name": "FinancIA",
   "description": "Finanzas personales",
-  "start_url": "/",
+  "start_url": "/financIA/",
+  "scope": "/financIA/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "/financIA/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/apple-touch-icon.png",
+      "src": "/financIA/apple-touch-icon.png",
       "sizes": "180x180",
       "type": "image/png"
     }
