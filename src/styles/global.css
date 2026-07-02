@@ -1,0 +1,301 @@
+/* ============ FinancIA — Design tokens (iOS dark) ============ */
+
+:root {
+  color-scheme: dark;
+
+  /* Colores base */
+  --bg: #000000;
+  --bg-elevated: #121214;
+  --surface: rgba(255, 255, 255, 0.06);
+  --surface-2: rgba(255, 255, 255, 0.1);
+  --surface-3: rgba(255, 255, 255, 0.16);
+  --separator: rgba(255, 255, 255, 0.08);
+  --hairline: rgba(255, 255, 255, 0.12);
+
+  /* Liquid glass */
+  --glass-bg: rgba(28, 28, 30, 0.62);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-highlight: rgba(255, 255, 255, 0.18);
+
+  /* Texto */
+  --label: #ffffff;
+  --label-2: rgba(235, 235, 245, 0.62);
+  --label-3: rgba(235, 235, 245, 0.32);
+
+  /* Acentos */
+  --accent: #f54927;
+  --accent-soft: rgba(245, 73, 39, 0.16);
+  --green: #30d158;
+  --green-soft: rgba(48, 209, 88, 0.16);
+  --red: #ff453a;
+  --red-soft: rgba(255, 69, 58, 0.14);
+
+  /* Radios */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+
+  /* Espaciado */
+  --pad-screen: 20px;
+
+  /* Safe areas */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* Tipografía */
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+    'Helvetica Neue', system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--bg);
+  overscroll-behavior-y: none;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--label);
+  font-size: 17px;
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  font-family: var(--font);
+}
+
+button {
+  font-family: var(--font);
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: inherit;
+  touch-action: manipulation;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* ============ Utilidades ============ */
+
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(24px) saturate(1.7);
+  backdrop-filter: blur(24px) saturate(1.7);
+  border: 0.5px solid var(--glass-border);
+  box-shadow:
+    inset 0 0.5px 0 var(--glass-highlight),
+    0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.hairline-top {
+  border-top: 0.5px solid var(--separator);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* Botón circular de barra superior (glass) */
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--label);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(24px) saturate(1.7);
+  backdrop-filter: blur(24px) saturate(1.7);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: inset 0 0.5px 0 var(--glass-highlight);
+  transition: transform 0.25s var(--ease-ios), background 0.2s;
+}
+
+.icon-btn:active {
+  transform: scale(0.9);
+  background: var(--surface-3);
+}
+
+/* Fila de formulario estilo iOS (inset grouped) */
+.form-group {
+  background: var(--surface);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 50px;
+  padding: 8px 16px;
+  width: 100%;
+  text-align: left;
+}
+
+.form-row + .form-row {
+  border-top: 0.5px solid var(--separator);
+}
+
+.form-row .row-label {
+  flex-shrink: 0;
+  font-size: 17px;
+}
+
+.form-row .row-value {
+  margin-left: auto;
+  color: var(--label-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 17px;
+  min-width: 0;
+  text-align: right;
+}
+
+.form-row input[type='text'],
+.form-row input[type='search'] {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--label);
+  font-size: 17px;
+  min-width: 0;
+}
+
+.form-row input::placeholder {
+  color: var(--label-3);
+}
+
+input[type='date'] {
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--label);
+  font-size: 17px;
+  font-family: var(--font);
+  text-align: right;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+}
+
+/* Botón primario grande */
+.btn-primary {
+  width: 100%;
+  height: 52px;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  transition: transform 0.25s var(--ease-ios), opacity 0.2s, filter 0.2s;
+  box-shadow: 0 6px 24px rgba(245, 73, 39, 0.35);
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+  filter: brightness(1.1);
+}
+
+.btn-primary:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+}
+
+.btn-plain {
+  color: var(--accent);
+  font-size: 17px;
+  font-weight: 500;
+  padding: 8px 4px;
+  transition: opacity 0.15s;
+}
+
+.btn-plain:active {
+  opacity: 0.5;
+}
+
+.btn-destructive-row {
+  color: var(--red);
+  justify-content: center;
+  font-weight: 500;
+}
+
+/* Título de sección estilo iOS */
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--label-2);
+  padding: 0 16px 8px;
+}
+
+/* Estado vacío */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 44px 32px;
+  text-align: center;
+}
+
+.empty-state .empty-icon {
+  font-size: 44px;
+  margin-bottom: 4px;
+  filter: grayscale(0.3);
+}
+
+.empty-state .empty-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.empty-state .empty-sub {
+  font-size: 14px;
+  color: var(--label-2);
+  max-width: 260px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
