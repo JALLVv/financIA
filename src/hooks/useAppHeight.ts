@@ -16,6 +16,16 @@ const KEYBOARD_THRESHOLD = 150;
 const SETTLE_DELAY = 90;
 
 /**
+ * Igual que en `useKeyboardInset`: no comparamos contra `window.innerHeight`
+ * porque en iOS Safari puede crecer al mismo tiempo que se abre el
+ * teclado (si Safari oculta su barra de direcciones en el mismo gesto),
+ * inflando el "teclado abierto" detectado muy por encima de la realidad.
+ * En su lugar seguimos una línea base propia, tomada del último
+ * `visualViewport.height` visto sin teclado, que se actualiza sola.
+ */
+let baseline = window.visualViewport?.height ?? window.innerHeight;
+
+/**
  * Expone la altura real del viewport visual como `--app-height`, pero solo
  * cuando el cambio es lo bastante grande y estable como para tratarse de
  * un teclado real — cualquier otra fluctuación se ignora y se deja que
@@ -34,10 +44,13 @@ export function useAppHeight() {
 
     const commit = () => {
       const measured = vv?.height ?? window.innerHeight;
-      const delta = window.innerHeight - measured;
-      const next = delta > KEYBOARD_THRESHOLD ? measured : window.innerHeight;
-      if (Math.abs(next - committed) < 2) return;
-      apply(next);
+      const delta = baseline - measured;
+      // Tanto con teclado real como sin él, el valor a aplicar es
+      // `measured` — la diferencia es que, sin teclado, `measured` ES la
+      // nueva línea base (el chrome de Safari pudo haber cambiado).
+      if (!(delta > KEYBOARD_THRESHOLD)) baseline = measured;
+      if (Math.abs(measured - committed) < 2) return;
+      apply(measured);
     };
 
     const scheduleUpdate = () => {
