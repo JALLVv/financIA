@@ -123,7 +123,7 @@ export function PeriodPickerSheet({ open, onClose, period, onChange, z = 110 }: 
       {/* key fijo (no `mode`): así este contenedor y las chips de año no se
           vuelven a montar/animar cada vez que solo se alterna entre
           Año y Mes — únicamente la cuadrícula de meses entra/sale. */}
-      <AnimatePresence initial={false}>
+      <AnimatePresence mode="popLayout" initial={false}>
         {mode !== 'all' && (
           <motion.div
             key="period-details"
@@ -153,7 +153,11 @@ export function PeriodPickerSheet({ open, onClose, period, onChange, z = 110 }: 
               ))}
             </div>
 
-            <AnimatePresence initial={false}>
+            {/* popLayout: al alternar Año/Mes, la cuadrícula saliente se saca
+                del flujo mientras se desvanece, en vez de reservar su alto
+                completo (transparente) durante la transición — eso era lo
+                que se veía como un hueco vacío por un instante. */}
+            <AnimatePresence mode="popLayout" initial={false}>
               {mode === 'month' && (
                 <motion.div
                   key="month-grid-wrap"

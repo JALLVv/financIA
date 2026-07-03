@@ -68,7 +68,11 @@ export function CategoriesManageSheet({ open, onClose }: CategoriesManageSheetPr
           ))}
         </div>
         <div className="form-group">
-          <AnimatePresence initial={false}>
+          {/* popLayout: al cambiar de pestaña (lista), las categorías salientes
+              se sacan del flujo mientras se desvanecen, así las entrantes
+              ocupan su lugar al instante en vez de dejar un hueco vacío o
+              duplicar la altura mientras ambas coexisten. */}
+          <AnimatePresence mode="popLayout" initial={false}>
             {listCategories.map((cat) => (
               <motion.div
                 className="manage-row"
