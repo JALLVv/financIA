@@ -1,7 +1,6 @@
-import { AnimatePresence, motion, useDragControls } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
-import { XMarkIcon } from '@/components/ui/Icon';
 import { useKeyboardInset } from '@/hooks/useKeyboardInset';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import './Sheet.css';
@@ -24,12 +23,12 @@ interface SheetProps {
 
 const spring = { type: 'spring', damping: 32, stiffness: 340, mass: 0.9 } as const;
 
-/** Bottom sheet estilo iOS con drag-to-dismiss, blur y esquinas continuas. */
+/** Bottom sheet estilo iOS, con blur y esquinas continuas. Se cierra
+ * tocando fuera o el botón "Cerrar" — sin gesto de arrastre. */
 export function Sheet({ open, onClose, children, title, headerAction, full, z = 100 }: SheetProps) {
   useScrollLock(open);
   const keyboardInset = useKeyboardInset();
   const panelRef = useRef<HTMLDivElement>(null);
-  const dragControls = useDragControls();
 
   const idRef = useRef<symbol | null>(null);
   if (idRef.current === null) idRef.current = Symbol('sheet');
@@ -104,41 +103,16 @@ export function Sheet({ open, onClose, children, title, headerAction, full, z = 
           animate={{ y: 0 }}
           exit={{ y: '110%' }}
           transition={spring}
-          drag="y"
-          dragListener={false}
-          dragControls={dragControls}
-          dragConstraints={{ top: 0, bottom: 0 }}
-          dragElastic={{ top: 0, bottom: 0.6 }}
-          onDragEnd={(_, info) => {
-            if (info.offset.y > 110 || info.velocity.y > 600) onClose();
-          }}
         >
-          {/* Arrastrar para cerrar solo se activa desde esta franja superior
-              (agarradera + encabezado), nunca desde el contenido — así un
-              gesto de scroll dentro de un formulario nunca se confunde con
-              "cerrar el sheet". */}
-          <div
-            className="sheet-drag-handle"
-            onPointerDown={(e) => dragControls.start(e)}
-          >
-            <div className="sheet-grabber" />
-            {(title || headerAction) && (
-              <div className="sheet-header">
-                <button
-                  className="sheet-close-btn"
-                  aria-label="Cerrar"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={onClose}
-                >
-                  <XMarkIcon size={13} />
-                </button>
-                <span className="sheet-title">{title}</span>
-                <div className="sheet-header-action" onPointerDown={(e) => e.stopPropagation()}>
-                  {headerAction}
-                </div>
-              </div>
-            )}
-          </div>
+          {(title || headerAction) && (
+            <div className="sheet-header">
+              <button className="sheet-close-text" onClick={onClose}>
+                Cerrar
+              </button>
+              <span className="sheet-title">{title}</span>
+              <div className="sheet-header-action">{headerAction}</div>
+            </div>
+          )}
           <div className="sheet-content">{children}</div>
         </motion.div>
       )}

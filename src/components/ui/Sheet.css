@@ -16,11 +16,10 @@
   margin: 0 auto;
   width: 100%;
   max-width: 560px;
-  /* Sin backdrop-filter aquí a propósito: este panel se arrastra (drag) y
-     anima su posición constantemente; recomponer un blur en cada frame es
-     lo más caro que existe para el GPU en iPhones no-Pro y es la causa
-     más probable de que el gesto se sienta entrecortado. El efecto glass
-     ya lo aporta el fondo casi opaco + el backdrop estático de abajo. */
+  /* Sin backdrop-filter aquí a propósito: recomponer un blur en cada frame
+     durante la animación de entrada/salida es lo más caro que existe para
+     el GPU en iPhones no-Pro. El efecto glass ya lo aporta el fondo casi
+     opaco + el backdrop estático de abajo. */
   background: rgb(23, 23, 26);
   border-radius: var(--r-xl) var(--r-xl) 0 0;
   border-top: 0.5px solid var(--glass-border);
@@ -33,28 +32,13 @@
   transition: bottom 0.22s var(--ease-ios), height 0.22s var(--ease-ios), max-height 0.22s var(--ease-ios);
 }
 
-.sheet-drag-handle {
-  flex-shrink: 0;
-  /* Zona donde SÍ se puede arrastrar para cerrar (agarradera + encabezado).
-     El contenido del sheet queda fuera de esto a propósito, para que
-     hacer scroll en un formulario nunca se confunda con cerrar el sheet. */
-  touch-action: none;
-}
-
-.sheet-grabber {
-  width: 38px;
-  height: 5px;
-  border-radius: 3px;
-  background: var(--surface-3);
-  margin: 8px auto 2px;
-}
-
 .sheet-header {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  padding: 10px 20px 6px;
+  padding: 18px 20px 12px;
 }
 
 .sheet-title {
@@ -69,24 +53,20 @@
   transform: translateY(-50%);
 }
 
-.sheet-close-btn {
+/* Botón de texto estilo iOS (como "Cancelar"/"Listo" en los modales del
+   sistema): azul del sistema, sin fondo ni borde propios. */
+.sheet-close-text {
   position: absolute;
   left: 16px;
   top: 50%;
   transform: translateY(-50%);
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: var(--label-2);
-  background: var(--surface-2);
-  transition: transform 0.2s var(--ease-ios), background 0.2s;
+  color: #0a84ff;
+  font-size: 16px;
+  transition: opacity 0.15s;
 }
 
-.sheet-close-btn:active {
-  transform: translateY(-50%) scale(0.88);
-  background: var(--surface-3);
+.sheet-close-text:active {
+  opacity: 0.5;
 }
 
 .sheet-content {

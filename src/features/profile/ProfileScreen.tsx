@@ -4,6 +4,7 @@ import { Sheet } from '@/components/ui/Sheet';
 import { haptics } from '@/services/haptics';
 import { useFinanceStore } from '@/store/useFinanceStore';
 import { useUiStore } from '@/store/useUiStore';
+import { APP_VERSION } from '@/version';
 import { CategoriesManageSheet } from './CategoriesManageSheet';
 import { ListsManageSheet } from './ListsManageSheet';
 import { RecurringManageSheet } from './RecurringManageSheet';
@@ -136,6 +137,8 @@ export function ProfileScreen() {
             </span>
           </button>
         </div>
+
+        <div className="profile-version">{APP_VERSION}</div>
       </Sheet>
 
       <ListsManageSheet open={section === 'lists'} onClose={() => setSection(null)} />
