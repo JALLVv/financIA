@@ -12,16 +12,25 @@ const KEYBOARD_THRESHOLD = 150;
 const SETTLE_DELAY = 90;
 /**
  * Tope superior generoso (más alto que cualquier teclado + barra de
- * accesorios real en iOS). Cuando el teclado se abre, Safari a veces
- * también oculta su propia barra de direcciones para ganar espacio —
- * eso hace crecer `window.innerHeight` al mismo tiempo que
- * `visualViewport.height` se reduce, e infla `measured` muy por encima
- * del alto real del teclado. Sin este tope, un valor inflado puede
- * dejar `max-height` en negativo en Sheet.tsx, que el navegador ignora
- * (sheet sin límite de alto) y termina empujando todo el panel — con su
- * encabezado y el campo enfocado — fuera de la pantalla por arriba.
+ * accesorios real en iOS). Es una segunda red de seguridad además de la
+ * línea base (ver abajo): si por lo que sea el valor calculado igual se
+ * dispara, esto evita que `max-height` en Sheet.tsx quede negativo (el
+ * navegador lo ignora, sheet sin límite de alto, empujado fuera de la
+ * pantalla por arriba).
  */
 const MAX_KEYBOARD_INSET = 420;
+
+/**
+ * Línea base compartida entre todos los sheets abiertos (no un estado por
+ * instancia): se inicializa al cargar la app, muy antes de que exista
+ * cualquier teclado, y sigue siendo válida aunque un sheet nuevo se monte
+ * mientras OTRO ya tiene el teclado abierto (p. ej. abrir "Nueva
+ * categoría" desde dentro del formulario de un movimiento) — si cada
+ * instancia capturara su propia línea base al montarse, en ese caso
+ * capturaría por error el alto YA encogido por el teclado como si fuera
+ * "sin teclado".
+ */
+let sharedBaseline = window.visualViewport?.height ?? window.innerHeight;
 
 /**
  * Devuelve, en píxeles, cuánto del *layout viewport* está actualmente
@@ -30,20 +39,28 @@ const MAX_KEYBOARD_INSET = 420;
  *
  * `position: fixed; bottom: 0` ancla un elemento al fondo del *layout*
  * viewport, que en iOS Safari normalmente NO se reduce cuando aparece el
- * teclado (solo el *visual* viewport se encoge), así que basta con la
- * diferencia de alto entre ambos viewports:
+ * teclado (solo el *visual* viewport se encoge).
  *
- *   window.innerHeight - visualViewport.height
+ * NO comparamos contra `window.innerHeight`: en iOS Safari, ese valor
+ * puede crecer al mismo tiempo que se abre el teclado, si Safari
+ * aprovecha para ocultar su propia barra de direcciones en el mismo
+ * gesto — la resta entonces incluye TANTO el alto del teclado COMO el
+ * espacio que ganó la barra de direcciones al ocultarse, e infla el
+ * resultado muy por encima del teclado real (justo lo que empujaba el
+ * sheet entero, encabezado incluido, fuera de la pantalla).
  *
- * A propósito NO usamos `visualViewport.offsetTop` (la fórmula que
+ * En cambio, llevamos nuestra propia línea base (`baseline`): el último
+ * `visualViewport.height` visto mientras el teclado estaba cerrado. Se
+ * actualiza sola cada vez que confirmamos "sin teclado", así que sigue
+ * la barra de direcciones (o cualquier otro cambio de chrome) cuando
+ * ocurre en solitario, y solo mide el teclado cuando este realmente
+ * hace que el viewport visual se encoja respecto a esa línea base.
+ *
+ * A propósito tampoco usamos `visualViewport.offsetTop` (la fórmula que
  * aparece en la mayoría de guías): ese valor cambia cada vez que Safari
  * desplaza el viewport visual para traer el campo recién enfocado por
- * encima del teclado, aunque el teclado en sí no haya cambiado de alto.
- * Si lo restamos, cada cambio de campo con el teclado ya abierto produce
- * un `inset` distinto durante ese desplazamiento — y el sheet entero
- * "tiembla" siguiendo ese vaivén. El alto del teclado, en cambio, se
- * mantiene constante entre campos del mismo tipo, así que usar solo la
- * diferencia de altura es tanto más simple como más estable.
+ * encima del teclado, aunque el teclado en sí no haya cambiado de alto,
+ * y eso hacía temblar el sheet al cambiar de campo.
  */
 export function useKeyboardInset(): number {
   const [inset, setInset] = useState(0);
@@ -54,12 +71,16 @@ export function useKeyboardInset(): number {
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const commit = () => {
-      const measured = Math.min(
-        MAX_KEYBOARD_INSET,
-        Math.max(0, Math.round(window.innerHeight - vv.height)),
-      );
-      const next = measured > KEYBOARD_THRESHOLD ? measured : 0;
-      setInset((prev) => (Math.abs(next - prev) < 2 ? prev : next));
+      const delta = Math.round(sharedBaseline - vv.height);
+      if (delta > KEYBOARD_THRESHOLD) {
+        const next = Math.min(MAX_KEYBOARD_INSET, delta);
+        setInset((prev) => (Math.abs(next - prev) < 2 ? prev : next));
+      } else {
+        // Sin teclado (o un reajuste menor de chrome): esto es "la
+        // verdad" actual, así que se convierte en la nueva línea base.
+        sharedBaseline = vv.height;
+        setInset((prev) => (prev === 0 ? prev : 0));
+      }
     };
 
     const scheduleUpdate = () => {
@@ -67,11 +88,29 @@ export function useKeyboardInset(): number {
       timer = setTimeout(commit, SETTLE_DELAY);
     };
 
+    // Un giro de pantalla cambia `visualViewport.height` por una razón
+    // legítima ajena al teclado — sin esto, `commit` compararía el nuevo
+    // alto contra la línea base de la orientación anterior y lo
+    // confundiría con un teclado enorme. Se resetea sin pasar por el
+    // umbral, y con un pequeño retraso porque iOS no siempre reporta las
+    // nuevas dimensiones de inmediato.
+    let orientationTimer: ReturnType<typeof setTimeout> | null = null;
+    const onOrientation = () => {
+      if (orientationTimer) clearTimeout(orientationTimer);
+      orientationTimer = setTimeout(() => {
+        sharedBaseline = vv.height;
+        setInset((prev) => (prev === 0 ? prev : 0));
+      }, 300);
+    };
+
     commit();
     vv.addEventListener('resize', scheduleUpdate);
+    window.addEventListener('orientationchange', onOrientation);
     return () => {
       vv.removeEventListener('resize', scheduleUpdate);
+      window.removeEventListener('orientationchange', onOrientation);
       if (timer) clearTimeout(timer);
+      if (orientationTimer) clearTimeout(orientationTimer);
     };
   }, []);
 
