@@ -74,7 +74,7 @@ export function RecurringManageSheet({ open, onClose }: RecurringManageSheetProp
                   >
                     <span
                       className="manage-emoji"
-                      style={{ background: `${cat?.color ?? '#666'}26` }}
+                      style={{ background: `${cat?.color ?? '#666'}40` }}
                     >
                       {cat?.emoji ?? '🔁'}
                     </span>

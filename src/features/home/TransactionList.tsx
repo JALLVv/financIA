@@ -42,7 +42,7 @@ export const TransactionRow = memo(function TransactionRow({
           : undefined
       }
     >
-      <span className="tx-emoji" style={{ background: `${category?.color ?? '#666'}26` }}>
+      <span className="tx-emoji" style={{ background: `${category?.color ?? '#666'}40` }}>
         {category?.emoji ?? '❓'}
       </span>
       <span className="tx-main">

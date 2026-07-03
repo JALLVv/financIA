@@ -20,10 +20,14 @@ export function HomeScreen() {
     <div className="home">
       <div className="home-scroll" ref={setScrollEl}>
         <TopBar />
-        {/* El balance nunca se remonta al cambiar de lista: solo su contador
-            anima hacia el nuevo valor, sin desaparecer ni moverse. */}
+        {/* El balance, el selector de tipo y el período nunca se remontan al
+            cambiar de lista: solo animan hacia el nuevo valor (contador o
+            pastilla), sin desaparecer ni moverse de sitio. */}
         <BalanceHeader />
-        {/* El resto del contenido sí se remonta con una transición suave. */}
+        <TypeSelector />
+        <PeriodButton />
+        {/* El gráfico y la lista sí se remontan con una transición suave,
+            porque su contenido cambia por completo entre listas. */}
         <AnimatePresence mode="wait" initial={false}>
           <motion.main
             key={activeListId}
@@ -32,8 +36,6 @@ export function HomeScreen() {
             exit={{ opacity: 0, y: -10, scale: 0.99 }}
             transition={{ type: 'spring', damping: 28, stiffness: 260 }}
           >
-            <TypeSelector />
-            <PeriodButton />
             <CategoryChart />
             <TransactionList scrollContainer={scrollEl} />
           </motion.main>

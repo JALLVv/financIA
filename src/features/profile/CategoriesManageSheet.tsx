@@ -89,7 +89,7 @@ export function CategoriesManageSheet({ open, onClose }: CategoriesManageSheetPr
                   }}
                   aria-label={`Editar ${cat.name}`}
                 >
-                  <span className="manage-emoji" style={{ background: `${cat.color}26` }}>
+                  <span className="manage-emoji" style={{ background: `${cat.color}40` }}>
                     {cat.emoji}
                   </span>
                   <span style={{ minWidth: 0, flex: 1 }}>
