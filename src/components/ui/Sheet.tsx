@@ -109,9 +109,17 @@ export function Sheet({ open, onClose, children, title, headerAction, full, z = 
             // chico de lo necesario — ver el bug que causó eso hace un par
             // de rondas. Con 100dvh (estable) restamos el teclado una sola
             // vez, aquí mismo.
+            // `max(..., 220px)`: red de seguridad. Si por lo que sea el
+            // resultado da negativo (medición de teclado inflada, chrome
+            // de Safari cambiando a la vez, etc.), un max-height negativo
+            // es inválido y el navegador lo IGNORA por completo — el
+            // panel queda sin límite de alto y termina empujado fuera de
+            // la pantalla por arriba junto con su encabezado. Con este
+            // piso, en el peor caso el sheet queda algo corto pero nunca
+            // se pierde de vista.
             ...(full
-              ? { height: `calc(100dvh - var(--safe-top) - 12px - ${keyboardInset}px)` }
-              : { maxHeight: `calc(100dvh - var(--safe-top) - 32px - ${keyboardInset}px)` }),
+              ? { height: `max(calc(100dvh - var(--safe-top) - 12px - ${keyboardInset}px), 220px)` }
+              : { maxHeight: `max(calc(100dvh - var(--safe-top) - 32px - ${keyboardInset}px), 220px)` }),
           }}
           role="dialog"
           aria-modal="true"

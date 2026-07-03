@@ -10,6 +10,18 @@ const KEYBOARD_THRESHOLD = 150;
  * para no reaccionar a cada evento intermedio de la propia animación del
  * teclado (eso es lo que se sentía como temblor al cambiar de campo). */
 const SETTLE_DELAY = 90;
+/**
+ * Tope superior generoso (más alto que cualquier teclado + barra de
+ * accesorios real en iOS). Cuando el teclado se abre, Safari a veces
+ * también oculta su propia barra de direcciones para ganar espacio —
+ * eso hace crecer `window.innerHeight` al mismo tiempo que
+ * `visualViewport.height` se reduce, e infla `measured` muy por encima
+ * del alto real del teclado. Sin este tope, un valor inflado puede
+ * dejar `max-height` en negativo en Sheet.tsx, que el navegador ignora
+ * (sheet sin límite de alto) y termina empujando todo el panel — con su
+ * encabezado y el campo enfocado — fuera de la pantalla por arriba.
+ */
+const MAX_KEYBOARD_INSET = 420;
 
 /**
  * Devuelve, en píxeles, cuánto del *layout viewport* está actualmente
@@ -42,7 +54,10 @@ export function useKeyboardInset(): number {
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const commit = () => {
-      const measured = Math.max(0, Math.round(window.innerHeight - vv.height));
+      const measured = Math.min(
+        MAX_KEYBOARD_INSET,
+        Math.max(0, Math.round(window.innerHeight - vv.height)),
+      );
       const next = measured > KEYBOARD_THRESHOLD ? measured : 0;
       setInset((prev) => (Math.abs(next - prev) < 2 ? prev : next));
     };
