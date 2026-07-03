@@ -42,9 +42,10 @@ export function Sheet({ open, onClose, children, title, headerAction, full, z = 
     if (!open || keyboardInset === 0) return;
     const active = document.activeElement;
     if (active instanceof HTMLElement && panelRef.current?.contains(active)) {
-      // Esperar a que el spring de Framer (abajo) termine de asentarse
-      // antes de medir dónde queda el elemento; si medimos a mitad de la
-      // animación, el navegador puede creer que ya está visible.
+      // Esperar a que el teclado nativo del SO termine su propia animación
+      // de apertura antes de medir dónde queda el elemento; si medimos
+      // mientras el teclado todavía se está desplegando, el navegador
+      // puede creer que ya está visible.
       const t = setTimeout(() => {
         active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }, 260);
@@ -89,24 +90,34 @@ export function Sheet({ open, onClose, children, title, headerAction, full, z = 
           className={`sheet-panel ${full ? 'sheet-full' : ''}`}
           style={{
             zIndex: z + 1,
-            // Alto fijo basado en 100dvh (estable, no reacciona al
-            // teclado) en vez de --app-height: antes, tanto `bottom` como
-            // `height`/`max-height` cambiaban juntos vía transición CSS
-            // (que fuerza reflow) cada vez que el teclado cambiaba de
-            // alto — p. ej. al saltar de un campo con teclado numérico a
-            // uno con teclado completo. Eso era el temblor al cambiar de
-            // casillero. Ahora el alto queda fijo y el desplazamiento para
-            // esquivar el teclado se hace con `y` (más abajo), que anima
-            // por transform — compositor puro, sin reflow.
+            // El teclado empuja el sheet hacia arriba justo lo necesario
+            // para quedar siempre visible encima de él, MANTENIENDO fijo
+            // el borde superior (así el campo que se está escribiendo,
+            // normalmente cerca de arriba, nunca queda tapado ni se va
+            // fuera de pantalla). A propósito esto ya NO tiene transición
+            // CSS (ver Sheet.css): el valor se aplica al instante en vez
+            // de animarse cuadro a cuadro durante ~220ms, que es lo que
+            // causaba el temblor al cambiar de casillero (bottom/height
+            // son propiedades de layout — animarlas de verdad fuerza un
+            // reflow completo en cada frame). Sin transición, el cambio
+            // sigue siendo un solo reflow, no docenas repartidos en el
+            // tiempo, así que no se nota como temblor.
+            bottom: keyboardInset,
+            // 100dvh explícito (no --app-height): esa variable YA se
+            // reduce sola cuando hay teclado, así que restar keyboardInset
+            // encima de ella la resta dos veces y el panel queda mucho más
+            // chico de lo necesario — ver el bug que causó eso hace un par
+            // de rondas. Con 100dvh (estable) restamos el teclado una sola
+            // vez, aquí mismo.
             ...(full
-              ? { height: `calc(100dvh - var(--safe-top) - 12px)` }
-              : { maxHeight: `calc(100dvh - var(--safe-top) - 32px)` }),
+              ? { height: `calc(100dvh - var(--safe-top) - 12px - ${keyboardInset}px)` }
+              : { maxHeight: `calc(100dvh - var(--safe-top) - 32px - ${keyboardInset}px)` }),
           }}
           role="dialog"
           aria-modal="true"
           aria-label={title}
           initial={{ y: '100%' }}
-          animate={{ y: -keyboardInset }}
+          animate={{ y: 0 }}
           exit={{ y: '110%' }}
           transition={spring}
         >
