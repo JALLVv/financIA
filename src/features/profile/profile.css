@@ -104,6 +104,13 @@
   opacity: 0.55;
 }
 
+/* Filas sin círculo de emoji (listas): el texto queda pegado al borde sin
+   esto, ya que no tienen el mismo margen visual que aporta el círculo de
+   categorías/recurrentes. */
+.manage-main-indent {
+  padding-left: 6px;
+}
+
 .manage-row .manage-title {
   font-size: 16px;
   font-weight: 500;

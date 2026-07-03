@@ -68,6 +68,7 @@ export function ListsManageSheet({ open, onClose }: ListsManageSheetProps) {
                 {editing ? (
                   <>
                     <input
+                      className="manage-main-indent"
                       type="text"
                       value={draft}
                       autoFocus
@@ -89,7 +90,7 @@ export function ListsManageSheet({ open, onClose }: ListsManageSheetProps) {
                 ) : (
                   <>
                     <button
-                      className="manage-main"
+                      className="manage-main manage-main-indent"
                       onClick={() => startEdit(list.id, list.name)}
                       aria-label={`Editar ${list.name}`}
                     >

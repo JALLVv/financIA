@@ -1,35 +1,63 @@
 import { useEffect } from 'react';
 
 /**
- * Expone la altura real del viewport visual como `--app-height`.
- *
- * `100dvh` por sí solo no siempre se actualiza de forma fiable en iOS
- * Safari cuando el teclado en pantalla aparece (especialmente en modo
- * standalone de una PWA) — el layout puede quedar calculado contra la
- * altura "de antes" del teclado, empujando contenido fuera de la pantalla.
- * `window.visualViewport` sí refleja el alto real disponible en todo
- * momento, así que lo usamos como fuente de verdad y CSS solo cae a
- * `100dvh` como respaldo antes de la primera medición.
+ * Umbral en píxeles para decidir si un cambio de `visualViewport.height`
+ * es "un teclado abriéndose" (típicamente 250-350px en iPhone) o solo
+ * ruido — la barra de Safari mostrándose/ocultándose al hacer scroll,
+ * o un pequeño reajuste al cambiar el foco entre campos. Por debajo de
+ * este umbral dejamos que el `100dvh` nativo del navegador maneje el
+ * cambio (lo hace de forma fluida, sincronizada con su propia animación),
+ * en vez de que nuestro JS reaccione y produzca un "salto" perceptible.
+ */
+const KEYBOARD_THRESHOLD = 150;
+/** Tiempo sin nuevos eventos antes de aplicar el cambio — evita que una
+ * ráfaga de eventos (la propia animación del teclado abriéndose) dispare
+ * varias actualizaciones intermedias que se ven como temblor. */
+const SETTLE_DELAY = 90;
+
+/**
+ * Expone la altura real del viewport visual como `--app-height`, pero solo
+ * cuando el cambio es lo bastante grande y estable como para tratarse de
+ * un teclado real — cualquier otra fluctuación se ignora y se deja que
+ * `100dvh` (el valor de respaldo en CSS) la resuelva de forma nativa.
  */
 export function useAppHeight() {
   useEffect(() => {
     const vv = window.visualViewport;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let committed = vv?.height ?? window.innerHeight;
 
-    const setHeight = () => {
-      const height = vv?.height ?? window.innerHeight;
+    const apply = (height: number) => {
+      committed = height;
       document.documentElement.style.setProperty('--app-height', `${height}px`);
     };
 
-    setHeight();
+    const commit = () => {
+      const measured = vv?.height ?? window.innerHeight;
+      const delta = window.innerHeight - measured;
+      const next = delta > KEYBOARD_THRESHOLD ? measured : window.innerHeight;
+      if (Math.abs(next - committed) < 2) return;
+      apply(next);
+    };
 
-    vv?.addEventListener('resize', setHeight);
-    window.addEventListener('resize', setHeight);
-    window.addEventListener('orientationchange', setHeight);
+    const scheduleUpdate = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(commit, SETTLE_DELAY);
+    };
+
+    apply(vv?.height ?? window.innerHeight);
+
+    vv?.addEventListener('resize', scheduleUpdate);
+    vv?.addEventListener('scroll', scheduleUpdate);
+    window.addEventListener('resize', scheduleUpdate);
+    window.addEventListener('orientationchange', scheduleUpdate);
 
     return () => {
-      vv?.removeEventListener('resize', setHeight);
-      window.removeEventListener('resize', setHeight);
-      window.removeEventListener('orientationchange', setHeight);
+      vv?.removeEventListener('resize', scheduleUpdate);
+      vv?.removeEventListener('scroll', scheduleUpdate);
+      window.removeEventListener('resize', scheduleUpdate);
+      window.removeEventListener('orientationchange', scheduleUpdate);
+      if (timer) clearTimeout(timer);
     };
   }, []);
 }
