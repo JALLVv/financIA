@@ -151,6 +151,7 @@
 }
 
 .cat-form-preview .preview-circle {
+  position: relative;
   width: 84px;
   height: 84px;
   border-radius: 50%;
@@ -168,6 +169,15 @@
   text-align: center;
   font-size: 40px;
   caret-color: var(--accent);
+}
+
+.cat-form-preview .preview-circle-plus {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--label-3);
+  pointer-events: none;
 }
 
 .cat-form-preview .preview-hint {

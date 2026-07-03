@@ -21,16 +21,20 @@ interface PeriodPillProps {
   onClick: () => void;
   /** Etiqueta cuando no hay período (equivalente a "Todo el tiempo"). */
   placeholder?: string;
+  /** Oculta el ícono de calendario (por ejemplo, junto a otros chips de filtro). */
+  hideIcon?: boolean;
 }
 
 /** Pastilla que muestra el período activo y abre su selector — reutilizable. */
-export function PeriodPill({ period, onClick, placeholder }: PeriodPillProps) {
+export function PeriodPill({ period, onClick, placeholder, hideIcon }: PeriodPillProps) {
   const label = period.mode === 'all' && placeholder ? placeholder : periodLabel(period);
   return (
     <button className="period-pill" aria-label="Cambiar período" onClick={onClick}>
-      <span className="calendar-ic">
-        <CalendarIcon size={15} />
-      </span>
+      {!hideIcon && (
+        <span className="calendar-ic">
+          <CalendarIcon size={15} />
+        </span>
+      )}
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.span
           key={label}
@@ -116,14 +120,17 @@ export function PeriodPickerSheet({ open, onClose, period, onChange, z = 110 }: 
         ]}
       />
 
-      <AnimatePresence mode="wait">
+      {/* key fijo (no `mode`): así este contenedor y las chips de año no se
+          vuelven a montar/animar cada vez que solo se alterna entre
+          Año y Mes — únicamente la cuadrícula de meses entra/sale. */}
+      <AnimatePresence initial={false}>
         {mode !== 'all' && (
           <motion.div
-            key={mode}
+            key="period-details"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
-            transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+            transition={{ type: 'spring', damping: 30, stiffness: 360 }}
             style={{ paddingTop: 16 }}
           >
             <div className="period-sheet-years" role="listbox" aria-label="Año">
@@ -146,38 +153,45 @@ export function PeriodPickerSheet({ open, onClose, period, onChange, z = 110 }: 
               ))}
             </div>
 
-            {mode === 'month' && (
-              <div className="month-grid">
-                {MONTHS_ES.map((name, i) => {
-                  const balance = monthBalances[i];
-                  const selected =
-                    period.mode === 'month' && period.year === year && period.month === i;
-                  return (
-                    <motion.button
-                      key={name}
-                      className={`month-cell ${selected ? 'selected' : ''}`}
-                      initial={{ opacity: 0, scale: 0.92 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: i * 0.015, type: 'spring', damping: 24, stiffness: 300 }}
-                      onClick={() => {
-                        haptics.medium();
-                        onChange({ mode: 'month', year, month: i });
-                        onClose();
-                      }}
-                    >
-                      <span className="month-name">{name}</span>
-                      <span
-                        className={`month-balance ${
-                          balance > 0 ? 'pos' : balance < 0 ? 'neg' : 'zero'
-                        }`}
-                      >
-                        {balance === 0 ? '—' : formatSignedMoney(balance)}
-                      </span>
-                    </motion.button>
-                  );
-                })}
-              </div>
-            )}
+            <AnimatePresence initial={false}>
+              {mode === 'month' && (
+                <motion.div
+                  key="month-grid-wrap"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.16 }}
+                >
+                  <div className="month-grid">
+                    {MONTHS_ES.map((name, i) => {
+                      const balance = monthBalances[i];
+                      const selected =
+                        period.mode === 'month' && period.year === year && period.month === i;
+                      return (
+                        <button
+                          key={name}
+                          className={`month-cell ${selected ? 'selected' : ''}`}
+                          onClick={() => {
+                            haptics.medium();
+                            onChange({ mode: 'month', year, month: i });
+                            onClose();
+                          }}
+                        >
+                          <span className="month-name">{name}</span>
+                          <span
+                            className={`month-balance ${
+                              balance > 0 ? 'pos' : balance < 0 ? 'neg' : 'zero'
+                            }`}
+                          >
+                            {balance === 0 ? '—' : formatSignedMoney(balance)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>

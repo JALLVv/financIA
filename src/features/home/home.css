@@ -188,6 +188,8 @@
   background: var(--surface);
   border: 0.5px solid rgba(255, 255, 255, 0.05);
   transition: transform 0.25s var(--ease-ios), color 0.2s;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .period-pill:active {

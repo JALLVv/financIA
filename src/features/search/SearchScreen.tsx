@@ -163,6 +163,7 @@ export function SearchScreen() {
         <PeriodPill
           period={period}
           placeholder="Todo el tiempo"
+          hideIcon
           onClick={() => {
             haptics.light();
             setOpenDropdown(null);

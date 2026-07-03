@@ -33,13 +33,20 @@
   transition: bottom 0.22s var(--ease-ios), height 0.22s var(--ease-ios), max-height 0.22s var(--ease-ios);
 }
 
+.sheet-drag-handle {
+  flex-shrink: 0;
+  /* Zona donde SÍ se puede arrastrar para cerrar (agarradera + encabezado).
+     El contenido del sheet queda fuera de esto a propósito, para que
+     hacer scroll en un formulario nunca se confunda con cerrar el sheet. */
+  touch-action: none;
+}
+
 .sheet-grabber {
   width: 38px;
   height: 5px;
   border-radius: 3px;
   background: var(--surface-3);
   margin: 8px auto 2px;
-  flex-shrink: 0;
 }
 
 .sheet-header {
@@ -48,7 +55,6 @@
   justify-content: center;
   position: relative;
   padding: 10px 20px 6px;
-  flex-shrink: 0;
 }
 
 .sheet-title {
@@ -61,6 +67,26 @@
   right: 16px;
   top: 50%;
   transform: translateY(-50%);
+}
+
+.sheet-close-btn {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--label-2);
+  background: var(--surface-2);
+  transition: transform 0.2s var(--ease-ios), background 0.2s;
+}
+
+.sheet-close-btn:active {
+  transform: translateY(-50%) scale(0.88);
+  background: var(--surface-3);
 }
 
 .sheet-content {

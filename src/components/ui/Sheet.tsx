@@ -1,6 +1,7 @@
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
+import { XMarkIcon } from '@/components/ui/Icon';
 import { useKeyboardInset } from '@/hooks/useKeyboardInset';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import './Sheet.css';
@@ -28,6 +29,7 @@ export function Sheet({ open, onClose, children, title, headerAction, full, z = 
   useScrollLock(open);
   const keyboardInset = useKeyboardInset();
   const panelRef = useRef<HTMLDivElement>(null);
+  const dragControls = useDragControls();
 
   const idRef = useRef<symbol | null>(null);
   if (idRef.current === null) idRef.current = Symbol('sheet');
@@ -103,19 +105,40 @@ export function Sheet({ open, onClose, children, title, headerAction, full, z = 
           exit={{ y: '110%' }}
           transition={spring}
           drag="y"
+          dragListener={false}
+          dragControls={dragControls}
           dragConstraints={{ top: 0, bottom: 0 }}
           dragElastic={{ top: 0, bottom: 0.6 }}
           onDragEnd={(_, info) => {
             if (info.offset.y > 110 || info.velocity.y > 600) onClose();
           }}
         >
-          <div className="sheet-grabber" />
-          {(title || headerAction) && (
-            <div className="sheet-header">
-              <span className="sheet-title">{title}</span>
-              <div className="sheet-header-action">{headerAction}</div>
-            </div>
-          )}
+          {/* Arrastrar para cerrar solo se activa desde esta franja superior
+              (agarradera + encabezado), nunca desde el contenido — así un
+              gesto de scroll dentro de un formulario nunca se confunde con
+              "cerrar el sheet". */}
+          <div
+            className="sheet-drag-handle"
+            onPointerDown={(e) => dragControls.start(e)}
+          >
+            <div className="sheet-grabber" />
+            {(title || headerAction) && (
+              <div className="sheet-header">
+                <button
+                  className="sheet-close-btn"
+                  aria-label="Cerrar"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={onClose}
+                >
+                  <XMarkIcon size={13} />
+                </button>
+                <span className="sheet-title">{title}</span>
+                <div className="sheet-header-action" onPointerDown={(e) => e.stopPropagation()}>
+                  {headerAction}
+                </div>
+              </div>
+            )}
+          </div>
           <div className="sheet-content">{children}</div>
         </motion.div>
       )}
