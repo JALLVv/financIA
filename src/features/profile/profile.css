@@ -68,6 +68,13 @@
   margin-bottom: 24px;
 }
 
+.profile-version {
+  text-align: center;
+  font-size: 11px;
+  color: var(--label-3);
+  padding: 4px 0 12px;
+}
+
 .manage-row {
   display: flex;
   align-items: center;
