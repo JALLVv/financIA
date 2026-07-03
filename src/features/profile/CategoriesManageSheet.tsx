@@ -68,52 +68,65 @@ export function CategoriesManageSheet({ open, onClose }: CategoriesManageSheetPr
           ))}
         </div>
         <div className="form-group">
-          {/* popLayout: al cambiar de pestaña (lista), las categorías salientes
-              se sacan del flujo mientras se desvanecen, así las entrantes
-              ocupan su lugar al instante en vez de dejar un hueco vacío o
-              duplicar la altura mientras ambas coexisten. */}
+          {/* popLayout solo en este nivel (un bloque por pestaña, no una
+              animación por fila): al cambiar de lista, el bloque saliente se
+              saca del flujo mientras se desvanece y el entrante ocupa su
+              lugar al instante, sin hueco vacío. Animar cada fila individual
+              con popLayout (como antes) obligaba a Framer a medir el layout
+              de todas las filas en cada cambio, y eso era lo que se sentía
+              lento/entrecortado en el resto de la app. */}
           <AnimatePresence mode="popLayout" initial={false}>
-            {listCategories.map((cat) => (
-              <motion.div
-                className="manage-row"
-                key={cat.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-              >
-                <button
-                  className="manage-main"
-                  style={{ display: 'flex', alignItems: 'center', gap: 12 }}
-                  onClick={() => {
-                    haptics.light();
-                    setEditingCategory(cat);
-                    setFormOpen(true);
-                  }}
-                  aria-label={`Editar ${cat.name}`}
-                >
-                  <span className="manage-emoji" style={{ background: `${cat.color}40` }}>
-                    {cat.emoji}
-                  </span>
-                  <span style={{ minWidth: 0, flex: 1 }}>
-                    <div className="manage-title">{cat.name}</div>
-                    <div className="manage-sub">{txCountByCategory.get(cat.id) ?? 0} movimientos</div>
-                  </span>
-                </button>
-                <div className="manage-actions">
-                  <button
-                    className="mini-btn danger"
-                    aria-label={`Eliminar ${cat.name}`}
-                    onClick={() => {
-                      haptics.light();
-                      setPendingDelete({ id: cat.id, name: cat.name });
-                    }}
+            <motion.div
+              key={catList}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              <AnimatePresence initial={false}>
+                {listCategories.map((cat) => (
+                  <motion.div
+                    className="manage-row"
+                    key={cat.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
                   >
-                    <TrashIcon size={15} />
-                  </button>
-                </div>
-              </motion.div>
-            ))}
+                    <button
+                      className="manage-main"
+                      style={{ display: 'flex', alignItems: 'center', gap: 12 }}
+                      onClick={() => {
+                        haptics.light();
+                        setEditingCategory(cat);
+                        setFormOpen(true);
+                      }}
+                      aria-label={`Editar ${cat.name}`}
+                    >
+                      <span className="manage-emoji" style={{ background: `${cat.color}40` }}>
+                        {cat.emoji}
+                      </span>
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        <div className="manage-title">{cat.name}</div>
+                        <div className="manage-sub">{txCountByCategory.get(cat.id) ?? 0} movimientos</div>
+                      </span>
+                    </button>
+                    <div className="manage-actions">
+                      <button
+                        className="mini-btn danger"
+                        aria-label={`Eliminar ${cat.name}`}
+                        onClick={() => {
+                          haptics.light();
+                          setPendingDelete({ id: cat.id, name: cat.name });
+                        }}
+                      >
+                        <TrashIcon size={15} />
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </motion.div>
           </AnimatePresence>
           <button
             className="manage-add-row"

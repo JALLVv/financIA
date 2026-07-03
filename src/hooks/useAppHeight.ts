@@ -47,14 +47,16 @@ export function useAppHeight() {
 
     apply(vv?.height ?? window.innerHeight);
 
+    // Sin listener de 'scroll': ese evento se dispara al desplazar el
+    // viewport visual (p. ej. Safari centrando un campo recién enfocado),
+    // no al cambiar de alto — escucharlo solo generaba recomputaciones de
+    // sobra sin aportar nada, ya que `commit` únicamente mira `vv.height`.
     vv?.addEventListener('resize', scheduleUpdate);
-    vv?.addEventListener('scroll', scheduleUpdate);
     window.addEventListener('resize', scheduleUpdate);
     window.addEventListener('orientationchange', scheduleUpdate);
 
     return () => {
       vv?.removeEventListener('resize', scheduleUpdate);
-      vv?.removeEventListener('scroll', scheduleUpdate);
       window.removeEventListener('resize', scheduleUpdate);
       window.removeEventListener('orientationchange', scheduleUpdate);
       if (timer) clearTimeout(timer);

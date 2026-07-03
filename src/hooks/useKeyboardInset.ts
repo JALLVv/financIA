@@ -18,13 +18,20 @@ const SETTLE_DELAY = 90;
  *
  * `position: fixed; bottom: 0` ancla un elemento al fondo del *layout*
  * viewport, que en iOS Safari normalmente NO se reduce cuando aparece el
- * teclado (solo el *visual* viewport se encoge). La fórmula estándar para
- * el hueco cubierto es:
+ * teclado (solo el *visual* viewport se encoge), así que basta con la
+ * diferencia de alto entre ambos viewports:
  *
- *   window.innerHeight - (visualViewport.offsetTop + visualViewport.height)
+ *   window.innerHeight - visualViewport.height
  *
- * Aplicar este valor como `bottom` sube el sheet para que quede siempre
- * justo encima del teclado.
+ * A propósito NO usamos `visualViewport.offsetTop` (la fórmula que
+ * aparece en la mayoría de guías): ese valor cambia cada vez que Safari
+ * desplaza el viewport visual para traer el campo recién enfocado por
+ * encima del teclado, aunque el teclado en sí no haya cambiado de alto.
+ * Si lo restamos, cada cambio de campo con el teclado ya abierto produce
+ * un `inset` distinto durante ese desplazamiento — y el sheet entero
+ * "tiembla" siguiendo ese vaivén. El alto del teclado, en cambio, se
+ * mantiene constante entre campos del mismo tipo, así que usar solo la
+ * diferencia de altura es tanto más simple como más estable.
  */
 export function useKeyboardInset(): number {
   const [inset, setInset] = useState(0);
@@ -35,8 +42,7 @@ export function useKeyboardInset(): number {
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const commit = () => {
-      const bottom = window.innerHeight - (vv.offsetTop + vv.height);
-      const measured = Math.max(0, Math.round(bottom));
+      const measured = Math.max(0, Math.round(window.innerHeight - vv.height));
       const next = measured > KEYBOARD_THRESHOLD ? measured : 0;
       setInset((prev) => (Math.abs(next - prev) < 2 ? prev : next));
     };
@@ -48,10 +54,8 @@ export function useKeyboardInset(): number {
 
     commit();
     vv.addEventListener('resize', scheduleUpdate);
-    vv.addEventListener('scroll', scheduleUpdate);
     return () => {
       vv.removeEventListener('resize', scheduleUpdate);
-      vv.removeEventListener('scroll', scheduleUpdate);
       if (timer) clearTimeout(timer);
     };
   }, []);
