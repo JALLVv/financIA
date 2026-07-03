@@ -68,7 +68,7 @@ export const CategoryChart = memo(function CategoryChart() {
                     opacity: selectedId && !isSelected ? 0.4 : 1,
                   }}
                   whileTap={{ scale: 0.96 }}
-                  transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+                  transition={{ type: 'spring', damping: 22, stiffness: 90, mass: 1 }}
                   style={{
                     background: isSelected ? BAR_COLOR_SELECTED : BAR_COLOR,
                     boxShadow: isSelected ? '0 0 16px rgba(245, 73, 39, 0.3)' : undefined,

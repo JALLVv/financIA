@@ -90,32 +90,57 @@
   flex-direction: column;
 }
 
-.date-range-row {
+.filter-dropdown {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.filter-dropdown-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+}
+
+.filter-dropdown-panel {
+  /* position/top/left los fija el componente inline (portal + fixed) */
+  z-index: 220;
+  min-width: 210px;
+  max-height: 300px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: rgba(30, 30, 33, 0.98);
+  border-radius: var(--r-md);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  padding: 6px;
+  transform-origin: top left;
+}
+
+.filter-dropdown-option {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  padding-bottom: 12px;
-}
-
-.date-range-field {
-  flex: 1;
-  background: var(--surface);
-  border-radius: var(--r-sm);
-  padding: 8px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.date-range-field label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--label-3);
-}
-
-.date-range-field input[type='date'] {
-  text-align: left;
   width: 100%;
-  font-size: 15px;
+  min-height: 42px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  font-size: 14.5px;
+  text-align: left;
+  color: var(--label);
+  white-space: nowrap;
+}
+
+.filter-dropdown-option:active {
+  background: var(--surface);
+}
+
+.filter-dropdown-option.selected {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.filter-dropdown-option .opt-check {
+  flex-shrink: 0;
+  color: var(--accent);
 }

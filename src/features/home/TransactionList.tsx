@@ -1,6 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { memo, useMemo, useRef } from 'react';
-import type { RefObject } from 'react';
+import { memo, useCallback, useMemo, useRef } from 'react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { RepeatIcon } from '@/components/ui/Icon';
 import { useCategoryMap, useVisibleTransactions } from '@/hooks/useDerivedData';
@@ -67,12 +66,20 @@ export const TransactionRow = memo(function TransactionRow({
 });
 
 interface TransactionListProps {
-  /** Contenedor con scroll propio (`.home-scroll`) sobre el que virtualizar. */
-  scrollContainerRef: RefObject<HTMLDivElement | null>;
+  /**
+   * Elemento con scroll propio (`.home-scroll`) sobre el que virtualizar.
+   * Se recibe como *valor de estado* (no como `RefObject`): un `ref` de un
+   * ancestro se adjunta después de que los `useLayoutEffect` de los
+   * descendientes ya corrieron en el mismo commit, así que leerlo
+   * directamente en el primer render de este componente devuelve `null` de
+   * forma permanente (nada vuelve a disparar un re-render). Como estado,
+   * la asignación del nodo fuerza un re-render que sí propaga el valor real.
+   */
+  scrollContainer: HTMLDivElement | null;
 }
 
 /** Lista de movimientos agrupada por día y virtualizada sobre el scroll de la pantalla. */
-export function TransactionList({ scrollContainerRef }: TransactionListProps) {
+export function TransactionList({ scrollContainer }: TransactionListProps) {
   const txs = useVisibleTransactions();
   const categoryMap = useCategoryMap();
   const txType = useUiStore((s) => s.txType);
@@ -92,13 +99,20 @@ export function TransactionList({ scrollContainerRef }: TransactionListProps) {
     return out;
   }, [txs]);
 
+  const getScrollElement = useCallback(() => scrollContainer, [scrollContainer]);
+  const estimateSize = useCallback(
+    (i: number) => (rows[i].kind === 'header' ? HEADER_HEIGHT : ROW_HEIGHT),
+    [rows],
+  );
+  const getItemKey = useCallback((i: number) => rows[i].key, [rows]);
+
   const virtualizer = useVirtualizer({
     count: rows.length,
-    getScrollElement: () => scrollContainerRef.current,
-    estimateSize: (i) => (rows[i].kind === 'header' ? HEADER_HEIGHT : ROW_HEIGHT),
+    getScrollElement,
+    estimateSize,
     overscan: 12,
     scrollMargin: listRef.current?.offsetTop ?? 0,
-    getItemKey: (i) => rows[i].key,
+    getItemKey,
   });
 
   if (txs.length === 0) {

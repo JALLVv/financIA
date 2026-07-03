@@ -1,40 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#191b22"/>
-      <stop offset="1" stop-color="#0d0e13"/>
-    </linearGradient>
     <linearGradient id="fg" x1="0.5" y1="0" x2="0.5" y2="1">
-      <stop offset="0" stop-color="#ef3b52"/>
-      <stop offset="1" stop-color="#f5822a"/>
+      <stop offset="0" stop-color="#ee4059"/>
+      <stop offset="1" stop-color="#f6822a"/>
     </linearGradient>
   </defs>
-  <rect width="200" height="200" rx="44" fill="url(#bg)"/>
+  <rect width="200" height="200" rx="44" fill="#14151d"/>
   <path
-    d="M100 30 L100 52"
+    d="M100 28 L100 51"
     fill="none"
     stroke="url(#fg)"
-    stroke-width="22"
+    stroke-width="21"
     stroke-linecap="round"
   />
   <path
-    d="M100 148 L100 170"
+    d="M100 149 L100 172"
     fill="none"
     stroke="url(#fg)"
-    stroke-width="22"
+    stroke-width="21"
     stroke-linecap="round"
   />
   <path
-    d="M141 66
-       C 141 50, 123 40, 100 40
-       C 77 40, 59 50, 59 67
-       C 59 85, 78 93, 100 100
-       C 124 108, 147 117, 147 135
-       C 147 154, 127 164, 100 164
-       C 77 164, 58 154, 58 137"
+    d="M140 65
+       C 140 49, 122 39, 100 39
+       C 78 39, 60 49, 60 66
+       C 60 84, 79 92, 100 99
+       C 123 107, 146 116, 146 134
+       C 146 153, 126 163, 100 163
+       C 78 163, 59 153, 59 136"
     fill="none"
     stroke="url(#fg)"
-    stroke-width="22"
+    stroke-width="21"
     stroke-linecap="round"
     stroke-linejoin="round"
   />

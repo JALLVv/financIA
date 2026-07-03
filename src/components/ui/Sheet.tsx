@@ -1,8 +1,11 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import type { ReactNode } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import './Sheet.css';
+
+/** Pila de sheets abiertos, para que Escape solo cierre el que está encima. */
+let openSheets: { id: symbol; z: number }[] = [];
 
 interface SheetProps {
   open: boolean;
@@ -23,14 +26,24 @@ const spring = { type: 'spring', damping: 32, stiffness: 340, mass: 0.9 } as con
 export function Sheet({ open, onClose, children, title, headerAction, full, z = 100 }: SheetProps) {
   useScrollLock(open);
 
+  const idRef = useRef<symbol | null>(null);
+  if (idRef.current === null) idRef.current = Symbol('sheet');
+
   useEffect(() => {
     if (!open) return;
+    const id = idRef.current!;
+    openSheets.push({ id, z });
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      const topZ = Math.max(...openSheets.map((s) => s.z));
+      if (z === topZ) onClose();
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+    return () => {
+      openSheets = openSheets.filter((s) => s.id !== id);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open, onClose, z]);
 
   return (
     <AnimatePresence>
