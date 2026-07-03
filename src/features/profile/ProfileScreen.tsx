@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { CameraIcon, ChevronRightIcon, ListIcon, PersonIcon, RepeatIcon, TagIcon } from '@/components/ui/Icon';
+import { CameraIcon, ChevronRightIcon, PersonIcon } from '@/components/ui/Icon';
 import { Sheet } from '@/components/ui/Sheet';
 import { haptics } from '@/services/haptics';
 import { useFinanceStore } from '@/store/useFinanceStore';
@@ -107,9 +107,7 @@ export function ProfileScreen() {
 
         <div className="form-group">
           <button className="profile-menu-row" onClick={() => openSection('lists')}>
-            <span className="menu-icon">
-              <ListIcon size={17} />
-            </span>
+            <span className="menu-icon">📝</span>
             <span className="menu-title">Listas</span>
             <span className="menu-count">{lists.length}</span>
             <span className="menu-chevron">
@@ -117,9 +115,7 @@ export function ProfileScreen() {
             </span>
           </button>
           <button className="profile-menu-row" onClick={() => openSection('categories')}>
-            <span className="menu-icon">
-              <TagIcon size={17} />
-            </span>
+            <span className="menu-icon">📊</span>
             <span className="menu-title">Categorías</span>
             <span className="menu-count">{categories.length}</span>
             <span className="menu-chevron">
@@ -127,9 +123,7 @@ export function ProfileScreen() {
             </span>
           </button>
           <button className="profile-menu-row" onClick={() => openSection('recurring')}>
-            <span className="menu-icon">
-              <RepeatIcon size={17} />
-            </span>
+            <span className="menu-icon">🔁</span>
             <span className="menu-title">Transacciones recurrentes</span>
             <span className="menu-count">{recurring.length}</span>
             <span className="menu-chevron">
