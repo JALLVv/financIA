@@ -26,7 +26,7 @@ export function TransactionDetailSheet() {
           <div className="tx-detail-head">
             <span
               className="tx-detail-emoji"
-              style={{ background: `${category?.color ?? '#666'}26` }}
+              style={{ background: `${category?.color ?? '#666'}40` }}
             >
               {category?.emoji ?? '❓'}
             </span>

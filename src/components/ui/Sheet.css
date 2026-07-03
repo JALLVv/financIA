@@ -8,13 +8,14 @@
 
 .sheet-panel {
   position: fixed;
+  /* bottom / height / max-height se fijan inline desde JS (useKeyboardInset),
+     así el sheet siempre queda justo encima del teclado — ver Sheet.tsx. */
   bottom: 0;
   left: 0;
   right: 0;
   margin: 0 auto;
   width: 100%;
   max-width: 560px;
-  max-height: calc(var(--app-height, 100dvh) - var(--safe-top) - 32px);
   /* Sin backdrop-filter aquí a propósito: este panel se arrastra (drag) y
      anima su posición constantemente; recomponer un blur en cada frame es
      lo más caro que existe para el GPU en iPhones no-Pro y es la causa
@@ -29,10 +30,7 @@
   overflow: hidden;
   will-change: transform;
   transform: translateZ(0);
-}
-
-.sheet-full {
-  height: calc(var(--app-height, 100dvh) - var(--safe-top) - 12px);
+  transition: bottom 0.22s var(--ease-ios), height 0.22s var(--ease-ios), max-height 0.22s var(--ease-ios);
 }
 
 .sheet-grabber {

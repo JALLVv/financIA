@@ -220,7 +220,7 @@ export function AddTransactionSheet() {
                     setCategoryId(cat.id);
                   }}
                 >
-                  <span className="cat-emoji" style={{ background: `${cat.color}26` }}>
+                  <span className="cat-emoji" style={{ background: `${cat.color}40` }}>
                     {cat.emoji}
                   </span>
                   <span className="cat-name">{cat.name}</span>

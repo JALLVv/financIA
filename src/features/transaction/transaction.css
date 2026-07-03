@@ -61,7 +61,7 @@
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  width: 64px;
+  width: 70px;
   transition: transform 0.2s var(--ease-ios);
 }
 
@@ -70,12 +70,12 @@
 }
 
 .cat-chip .cat-emoji {
-  width: 52px;
-  height: 52px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 24px;
+  font-size: 27px;
   border: 2px solid transparent;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -88,7 +88,7 @@
 .cat-chip .cat-name {
   font-size: 11.5px;
   color: var(--label-2);
-  max-width: 64px;
+  max-width: 70px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -95,7 +95,7 @@ export const CategoryChart = memo(function CategoryChart() {
           >
             <span
               className="detail-emoji"
-              style={{ background: `${selected.category.color}26` }}
+              style={{ background: `${selected.category.color}40` }}
             >
               {selected.category.emoji}
             </span>

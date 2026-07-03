@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
+import { useKeyboardInset } from '@/hooks/useKeyboardInset';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import './Sheet.css';
 
@@ -25,9 +26,30 @@ const spring = { type: 'spring', damping: 32, stiffness: 340, mass: 0.9 } as con
 /** Bottom sheet estilo iOS con drag-to-dismiss, blur y esquinas continuas. */
 export function Sheet({ open, onClose, children, title, headerAction, full, z = 100 }: SheetProps) {
   useScrollLock(open);
+  const keyboardInset = useKeyboardInset();
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const idRef = useRef<symbol | null>(null);
   if (idRef.current === null) idRef.current = Symbol('sheet');
+
+  // No confiamos en que el navegador auto-desplace el input enfocado al
+  // aparecer el teclado (ese comportamiento nativo está atado a la
+  // aparición real del teclado del SO, y en algunos casos/navegadores no
+  // se dispara de forma fiable). En cuanto el inset del teclado cambia,
+  // desplazamos nosotros mismos el elemento enfocado dentro del sheet.
+  useEffect(() => {
+    if (!open || keyboardInset === 0) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && panelRef.current?.contains(active)) {
+      // Esperar a que termine la transición CSS de bottom/height (220ms)
+      // antes de medir dónde queda el elemento; si medimos a mitad de la
+      // transición, el navegador puede creer que ya está visible.
+      const t = setTimeout(() => {
+        active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }, 260);
+      return () => clearTimeout(t);
+    }
+  }, [open, keyboardInset]);
 
   useEffect(() => {
     if (!open) return;
@@ -62,8 +84,17 @@ export function Sheet({ open, onClose, children, title, headerAction, full, z = 
       {open && (
         <motion.div
           key="panel"
+          ref={panelRef}
           className={`sheet-panel ${full ? 'sheet-full' : ''}`}
-          style={{ zIndex: z + 1 }}
+          style={{
+            zIndex: z + 1,
+            // El teclado empuja el sheet hacia arriba justo lo necesario
+            // para quedar siempre visible encima de él — ver useKeyboardInset.
+            bottom: keyboardInset,
+            ...(full
+              ? { height: `calc(var(--app-height, 100dvh) - var(--safe-top) - 12px - ${keyboardInset}px)` }
+              : { maxHeight: `calc(var(--app-height, 100dvh) - var(--safe-top) - 32px - ${keyboardInset}px)` }),
+          }}
           role="dialog"
           aria-modal="true"
           aria-label={title}
