@@ -11,11 +11,14 @@
 
 .sheet-panel {
   position: fixed;
-  /* bottom fijo: el desplazamiento para esquivar el teclado ya NO se hace
-     cambiando `bottom` (eso forzaba reflow en cada cambio de teclado — el
-     temblor al saltar entre casilleros); ahora Sheet.tsx anima `y` (un
-     transform), que es puramente de compositor. Alto también fijo, en
-     base a 100dvh — ver Sheet.tsx. */
+  /* bottom / height / max-height se fijan inline desde JS (useKeyboardInset)
+     para esquivar el teclado manteniendo fijo el borde SUPERIOR del sheet
+     — ver Sheet.tsx. A propósito no llevan `transition`: aplicarlos con
+     una animación CSS de ~220ms fuerza un reflow en cada cuadro durante
+     todo ese tiempo (bottom/height son propiedades de layout), y eso es
+     lo que se sentía como temblor al saltar entre casilleros con
+     distinto tipo de teclado. Sin transición, el cambio sigue siendo un
+     único reflow, no docenas repartidos en el tiempo — no se nota. */
   bottom: 0;
   left: 0;
   right: 0;
