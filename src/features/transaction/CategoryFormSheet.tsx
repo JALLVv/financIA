@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PlusIcon } from '@/components/ui/Icon';
 import { Sheet } from '@/components/ui/Sheet';
 import type { Category } from '@/models/types';
 import { CATEGORY_COLOR_CHOICES, colorFromEmoji, firstGrapheme } from '@/services/emojiColor';
@@ -96,10 +97,14 @@ export function CategoryFormSheet({
               type="text"
               inputMode="text"
               aria-label="Emoji de la categoría"
-              placeholder="😀"
               value={emoji}
               onChange={(e) => setEmoji(firstGrapheme(e.target.value))}
             />
+            {!emoji && (
+              <span className="preview-circle-plus" aria-hidden>
+                <PlusIcon size={28} strokeWidth={1.8} />
+              </span>
+            )}
           </div>
           <span className="preview-hint">
             {emoji ? 'Color generado del emoji' : 'Toca el círculo y elige un emoji'}

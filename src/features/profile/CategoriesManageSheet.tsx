@@ -73,11 +73,10 @@ export function CategoriesManageSheet({ open, onClose }: CategoriesManageSheetPr
               <motion.div
                 className="manage-row"
                 key={cat.id}
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ type: 'spring', damping: 30, stiffness: 320 }}
-                style={{ overflow: 'hidden' }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
               >
                 <button
                   className="manage-main"

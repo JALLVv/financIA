@@ -27,14 +27,18 @@ export function HomeScreen() {
         <TypeSelector />
         <PeriodButton />
         {/* El gráfico y la lista sí se remontan con una transición suave,
-            porque su contenido cambia por completo entre listas. */}
-        <AnimatePresence mode="wait" initial={false}>
+            porque su contenido cambia por completo entre listas.
+            mode="popLayout" saca el contenido saliente del flujo (position
+            absolute mientras se desvanece) para que el nuevo ocupe su lugar
+            de inmediato, en vez de esperar a que termine de desaparecer
+            primero — así el contenido nuevo se ve al instante. */}
+        <AnimatePresence mode="popLayout" initial={false}>
           <motion.main
             key={activeListId}
-            initial={{ opacity: 0, y: 14, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.99 }}
-            transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ type: 'spring', damping: 32, stiffness: 420 }}
           >
             <CategoryChart />
             <TransactionList scrollContainer={scrollEl} />
