@@ -11,14 +11,24 @@ const KEYBOARD_THRESHOLD = 150;
  * teclado (eso es lo que se sentía como temblor al cambiar de campo). */
 const SETTLE_DELAY = 90;
 /**
- * Tope superior generoso (más alto que cualquier teclado + barra de
- * accesorios real en iOS). Es una segunda red de seguridad además de la
- * línea base (ver abajo): si por lo que sea el valor calculado igual se
- * dispara, esto evita que `max-height` en Sheet.tsx quede negativo (el
- * navegador lo ignora, sheet sin límite de alto, empujado fuera de la
- * pantalla por arriba).
+ * Confirmación tardía: la animación nativa del teclado en iOS dura
+ * ~250ms, más que nuestro SETTLE_DELAY. Si iOS no dispara un evento
+ * `resize` por cada cuadro de esa animación (los navegadores a veces los
+ * agrupan/omiten), nuestro debounce puede terminar de esperar durante un
+ * instante intermedio de la animación en vez del valor final ya
+ * asentado, y medir un "teclado" más alto de lo que en verdad es. Esta
+ * segunda lectura, bastante después de la animación nativa, corrige ese
+ * valor si hizo falta.
  */
-const MAX_KEYBOARD_INSET = 420;
+const CONFIRM_DELAY = 320;
+/**
+ * Tope superior (más alto que cualquier teclado + barra de accesorios
+ * real en iOS). Segunda red de seguridad: si por lo que sea el valor
+ * calculado igual se dispara, esto evita que `max-height` en Sheet.tsx
+ * quede negativo (el navegador lo ignora, sheet sin límite de alto,
+ * empujado fuera de la pantalla por arriba).
+ */
+const MAX_KEYBOARD_INSET = 360;
 
 /**
  * Línea base compartida entre todos los sheets abiertos (no un estado por
@@ -69,12 +79,21 @@ export function useKeyboardInset(): number {
     const vv = window.visualViewport;
     if (!vv) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let confirmTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const commit = () => {
+    const commit = (isConfirmation = false) => {
       const delta = Math.round(sharedBaseline - vv.height);
       if (delta > KEYBOARD_THRESHOLD) {
         const next = Math.min(MAX_KEYBOARD_INSET, delta);
         setInset((prev) => (Math.abs(next - prev) < 2 ? prev : next));
+        // Puede que hayamos leído esto a mitad de la animación nativa del
+        // teclado si iOS no siguió disparando `resize` en cada cuadro —
+        // se vuelve a medir una sola vez más, más tarde (cuando seguro ya
+        // terminó), y se corrige si el valor final resultó distinto.
+        if (!isConfirmation) {
+          if (confirmTimer) clearTimeout(confirmTimer);
+          confirmTimer = setTimeout(() => commit(true), CONFIRM_DELAY);
+        }
       } else {
         // Sin teclado (o un reajuste menor de chrome): esto es "la
         // verdad" actual, así que se convierte en la nueva línea base.
@@ -110,6 +129,7 @@ export function useKeyboardInset(): number {
       vv.removeEventListener('resize', scheduleUpdate);
       window.removeEventListener('orientationchange', onOrientation);
       if (timer) clearTimeout(timer);
+      if (confirmTimer) clearTimeout(confirmTimer);
       if (orientationTimer) clearTimeout(orientationTimer);
     };
   }, []);
