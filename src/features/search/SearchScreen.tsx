@@ -1,16 +1,17 @@
-import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SearchIcon, XMarkIcon } from '@/components/ui/Icon';
 import { Sheet } from '@/components/ui/Sheet';
 import { TransactionRow } from '@/features/home/TransactionList';
+import { PeriodPickerSheet, PeriodPill } from '@/features/home/PeriodSelector';
 import { useCategoryMap } from '@/hooks/useDerivedData';
-import type { TxType } from '@/models/types';
+import type { Period, TxType } from '@/models/types';
 import { balanceOf, filterTransactions, sortByDateDesc } from '@/services/filters';
 import { haptics } from '@/services/haptics';
 import { useFinanceStore } from '@/store/useFinanceStore';
 import { useUiStore } from '@/store/useUiStore';
 import { formatSignedMoney } from '@/utils/money';
+import { FilterDropdown } from './FilterDropdown';
 import './search.css';
 
 type TypeFilter = TxType | 'both';
@@ -21,7 +22,9 @@ const TYPE_LABELS: Record<TypeFilter, string> = {
   income: 'Solo ingresos',
 };
 
-/** Búsqueda instantánea por texto, tipo, lista, categoría y rango de fechas. */
+type DropdownKey = 'type' | 'list' | 'category' | null;
+
+/** Búsqueda instantánea por texto, tipo, lista, categoría y período. */
 export function SearchScreen() {
   const open = useUiStore((s) => s.searchOpen);
   const setOpen = useUiStore((s) => s.setSearchOpen);
@@ -37,9 +40,9 @@ export function SearchScreen() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('both');
   const [listFilter, setListFilter] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
-  const [showDates, setShowDates] = useState(false);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [period, setPeriod] = useState<Period>({ mode: 'all' });
+  const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState<DropdownKey>(null);
 
   useEffect(() => {
     if (open) {
@@ -47,9 +50,9 @@ export function SearchScreen() {
       setTypeFilter('both');
       setListFilter('');
       setCategoryFilter('');
-      setDateFrom('');
-      setDateTo('');
-      setShowDates(false);
+      setPeriod({ mode: 'all' });
+      setPeriodPickerOpen(false);
+      setOpenDropdown(null);
     }
   }, [open]);
 
@@ -66,35 +69,20 @@ export function SearchScreen() {
         type: typeFilter,
         listId: listFilter || undefined,
         categoryId: categoryFilter || undefined,
-        dateFrom: dateFrom || undefined,
-        dateTo: dateTo || undefined,
+        period,
       }),
     );
-  }, [open, transactions, text, typeFilter, listFilter, categoryFilter, dateFrom, dateTo]);
+  }, [open, transactions, text, typeFilter, listFilter, categoryFilter, period]);
 
   const total = useMemo(() => balanceOf(results), [results]);
 
-  const cycleType = () => {
+  const toggleDropdown = (key: DropdownKey) => {
     haptics.light();
-    setTypeFilter((t) => (t === 'both' ? 'expense' : t === 'expense' ? 'income' : 'both'));
-  };
-
-  const cycleList = () => {
-    haptics.light();
-    const ids = ['', ...lists.map((l) => l.id)];
-    const next = ids[(ids.indexOf(listFilter) + 1) % ids.length];
-    setListFilter(next);
-    setCategoryFilter('');
-  };
-
-  const cycleCategory = () => {
-    haptics.light();
-    const ids = ['', ...filterableCategories.map((c) => c.id)];
-    setCategoryFilter(ids[(ids.indexOf(categoryFilter) + 1) % ids.length]);
+    setOpenDropdown((cur) => (cur === key ? null : key));
   };
 
   const hasActiveFilters =
-    typeFilter !== 'both' || listFilter || categoryFilter || dateFrom || dateTo || text;
+    typeFilter !== 'both' || listFilter || categoryFilter || period.mode !== 'all' || text;
 
   return (
     <Sheet open={open} onClose={() => setOpen(false)} title="Buscar" full z={90}>
@@ -118,62 +106,78 @@ export function SearchScreen() {
       </div>
 
       <div className="filter-chips">
-        <button className={`filter-chip ${typeFilter !== 'both' ? 'active' : ''}`} onClick={cycleType}>
-          {TYPE_LABELS[typeFilter]}
-        </button>
-        <button className={`filter-chip ${listFilter ? 'active' : ''}`} onClick={cycleList}>
-          {listFilter ? listNames.get(listFilter) : 'Todas las listas'}
-        </button>
-        <button
-          className={`filter-chip ${categoryFilter ? 'active' : ''}`}
-          onClick={cycleCategory}
-        >
-          {categoryFilter
-            ? `${categoryMap.get(categoryFilter)?.emoji ?? ''} ${categoryMap.get(categoryFilter)?.name ?? ''}`
-            : 'Todas las categorías'}
-        </button>
-        <button
-          className={`filter-chip ${dateFrom || dateTo ? 'active' : ''}`}
+        <FilterDropdown<TypeFilter>
+          triggerLabel={TYPE_LABELS[typeFilter]}
+          active={typeFilter !== 'both'}
+          isOpen={openDropdown === 'type'}
+          onToggle={() => toggleDropdown('type')}
+          value={typeFilter}
+          onSelect={(v) => {
+            setTypeFilter(v);
+            setOpenDropdown(null);
+          }}
+          options={[
+            { value: 'both', label: 'Ambos' },
+            { value: 'expense', label: 'Solo gastos' },
+            { value: 'income', label: 'Solo ingresos' },
+          ]}
+        />
+
+        <FilterDropdown<string>
+          triggerLabel={listFilter ? listNames.get(listFilter) : 'Todas las listas'}
+          active={!!listFilter}
+          isOpen={openDropdown === 'list'}
+          onToggle={() => toggleDropdown('list')}
+          value={listFilter}
+          onSelect={(v) => {
+            setListFilter(v);
+            setCategoryFilter('');
+            setOpenDropdown(null);
+          }}
+          options={[
+            { value: '', label: 'Todas las listas' },
+            ...lists.map((l) => ({ value: l.id, label: l.name })),
+          ]}
+        />
+
+        <FilterDropdown<string>
+          triggerLabel={
+            categoryFilter
+              ? `${categoryMap.get(categoryFilter)?.emoji ?? ''} ${categoryMap.get(categoryFilter)?.name ?? ''}`
+              : 'Todas las categorías'
+          }
+          active={!!categoryFilter}
+          isOpen={openDropdown === 'category'}
+          onToggle={() => toggleDropdown('category')}
+          value={categoryFilter}
+          onSelect={(v) => {
+            setCategoryFilter(v);
+            setOpenDropdown(null);
+          }}
+          options={[
+            { value: '', label: 'Todas las categorías' },
+            ...filterableCategories.map((c) => ({ value: c.id, label: `${c.emoji} ${c.name}` })),
+          ]}
+        />
+
+        <PeriodPill
+          period={period}
+          placeholder="Todo el tiempo"
           onClick={() => {
             haptics.light();
-            setShowDates((v) => !v);
+            setOpenDropdown(null);
+            setPeriodPickerOpen(true);
           }}
-        >
-          Fechas
-        </button>
+        />
       </div>
 
-      <AnimatePresence initial={false}>
-        {showDates && (
-          <motion.div
-            className="date-range-row"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ type: 'spring', damping: 30, stiffness: 320 }}
-            style={{ overflow: 'hidden' }}
-          >
-            <div className="date-range-field">
-              <label htmlFor="date-from">Desde</label>
-              <input
-                id="date-from"
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-              />
-            </div>
-            <div className="date-range-field">
-              <label htmlFor="date-to">Hasta</label>
-              <input
-                id="date-to"
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {openDropdown && (
+        <button
+          className="filter-dropdown-backdrop"
+          aria-label="Cerrar filtro"
+          onClick={() => setOpenDropdown(null)}
+        />
+      )}
 
       {results.length > 0 && (
         <div className="search-summary">
@@ -212,6 +216,14 @@ export function SearchScreen() {
           ))
         )}
       </div>
+
+      <PeriodPickerSheet
+        open={periodPickerOpen}
+        onClose={() => setPeriodPickerOpen(false)}
+        period={period}
+        onChange={setPeriod}
+        z={110}
+      />
     </Sheet>
   );
 }

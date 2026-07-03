@@ -291,7 +291,7 @@
 .chart-scroll {
   display: flex;
   align-items: flex-end;
-  gap: 14px;
+  gap: 12px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   padding: 8px var(--pad-screen) 2px;
@@ -301,7 +301,7 @@
 .chart-col {
   display: flex;
   flex-shrink: 0;
-  width: 64px;
+  width: 78px;
 }
 
 .chart-col .bar-track {
@@ -577,9 +577,11 @@
 
 .list-picker-row .list-balance {
   font-size: 14px;
+  font-weight: 700;
   color: var(--label-2);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
+  margin-right: 10px;
 }
 
 .list-picker-row .list-marker {

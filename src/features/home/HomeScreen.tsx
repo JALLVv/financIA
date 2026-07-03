@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useRef } from 'react';
+import { useState } from 'react';
 import { useFinanceStore } from '@/store/useFinanceStore';
 import { BalanceHeader } from './BalanceHeader';
 import { CategoryChart } from './CategoryChart';
@@ -12,13 +12,18 @@ import './home.css';
 
 export function HomeScreen() {
   const activeListId = useFinanceStore((s) => s.activeListId);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Estado (no useRef): así la asignación del nodo dispara un re-render que
+  // propaga el elemento real a TransactionList — ver comentario en su prop.
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
 
   return (
     <div className="home">
-      <div className="home-scroll" ref={scrollRef}>
+      <div className="home-scroll" ref={setScrollEl}>
         <TopBar />
-        {/* Cambiar de lista re-monta el contenido con una transición suave. */}
+        {/* El balance nunca se remonta al cambiar de lista: solo su contador
+            anima hacia el nuevo valor, sin desaparecer ni moverse. */}
+        <BalanceHeader />
+        {/* El resto del contenido sí se remonta con una transición suave. */}
         <AnimatePresence mode="wait" initial={false}>
           <motion.main
             key={activeListId}
@@ -27,11 +32,10 @@ export function HomeScreen() {
             exit={{ opacity: 0, y: -10, scale: 0.99 }}
             transition={{ type: 'spring', damping: 28, stiffness: 260 }}
           >
-            <BalanceHeader />
             <TypeSelector />
             <PeriodButton />
             <CategoryChart />
-            <TransactionList scrollContainerRef={scrollRef} />
+            <TransactionList scrollContainer={scrollEl} />
           </motion.main>
         </AnimatePresence>
       </div>

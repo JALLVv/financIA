@@ -149,3 +149,12 @@ export function ListIcon({ size = 18, strokeWidth = 2, style }: IconProps) {
     </svg>
   );
 }
+
+export function TagIcon({ size = 18, strokeWidth = 1.9, style }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" {...base(size)} strokeWidth={strokeWidth} style={style}>
+      <path d="M20 12.6 12.6 20a1.8 1.8 0 0 1-2.6 0L4 14V4h10z" strokeLinejoin="round" />
+      <circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}

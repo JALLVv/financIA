@@ -16,47 +16,65 @@ function periodLabel(period: Period): string {
   return `${MONTHS_ES[period.month]} ${period.year}`;
 }
 
+interface PeriodPillProps {
+  period: Period;
+  onClick: () => void;
+  /** Etiqueta cuando no hay período (equivalente a "Todo el tiempo"). */
+  placeholder?: string;
+}
+
+/** Pastilla que muestra el período activo y abre su selector — reutilizable. */
+export function PeriodPill({ period, onClick, placeholder }: PeriodPillProps) {
+  const label = period.mode === 'all' && placeholder ? placeholder : periodLabel(period);
+  return (
+    <button className="period-pill" aria-label="Cambiar período" onClick={onClick}>
+      <span className="calendar-ic">
+        <CalendarIcon size={15} />
+      </span>
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.span
+          key={label}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+        >
+          {label}
+        </motion.span>
+      </AnimatePresence>
+      <ChevronDownIcon size={13} />
+    </button>
+  );
+}
+
 export function PeriodButton() {
   const period = useUiStore((s) => s.period);
   const setPeriodPickerOpen = useUiStore((s) => s.setPeriodPickerOpen);
-
   return (
     <div className="period-wrap">
-      <button
-        className="period-pill"
-        aria-label="Cambiar período"
+      <PeriodPill
+        period={period}
         onClick={() => {
           haptics.light();
           setPeriodPickerOpen(true);
         }}
-      >
-        <span className="calendar-ic">
-          <CalendarIcon size={15} />
-        </span>
-        <AnimatePresence mode="popLayout" initial={false}>
-          <motion.span
-            key={periodLabel(period)}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-          >
-            {periodLabel(period)}
-          </motion.span>
-        </AnimatePresence>
-        <ChevronDownIcon size={13} />
-      </button>
+      />
     </div>
   );
 }
 
 type Mode = 'all' | 'year' | 'month';
 
-export function PeriodSheet() {
-  const open = useUiStore((s) => s.periodPickerOpen);
-  const setOpen = useUiStore((s) => s.setPeriodPickerOpen);
-  const period = useUiStore((s) => s.period);
-  const setPeriod = useUiStore((s) => s.setPeriod);
+interface PeriodPickerSheetProps {
+  open: boolean;
+  onClose: () => void;
+  period: Period;
+  onChange: (period: Period) => void;
+  z?: number;
+}
+
+/** Selector de período (Todo/Año/Mes) — controlado, reutilizable fuera de la pantalla principal. */
+export function PeriodPickerSheet({ open, onClose, period, onChange, z = 110 }: PeriodPickerSheetProps) {
   const years = useAvailableYears();
 
   const currentYear = new Date().getFullYear();
@@ -79,18 +97,16 @@ export function PeriodSheet() {
     [years, year],
   );
 
-  const close = () => setOpen(false);
-
   return (
-    <Sheet open={open} onClose={close} title="Período" z={110}>
+    <Sheet open={open} onClose={onClose} title="Período" z={z}>
       <SegmentedControl<Mode>
         value={mode}
         onChange={(m) => {
           setMode(m);
           if (m === 'all') {
-            setPeriod({ mode: 'all' });
+            onChange({ mode: 'all' });
             haptics.medium();
-            close();
+            onClose();
           }
         }}
         segments={[
@@ -119,9 +135,9 @@ export function PeriodSheet() {
                     haptics.light();
                     setYear(y);
                     if (mode === 'year') {
-                      setPeriod({ mode: 'year', year: y });
+                      onChange({ mode: 'year', year: y });
                       haptics.medium();
-                      close();
+                      onClose();
                     }
                   }}
                 >
@@ -145,8 +161,8 @@ export function PeriodSheet() {
                       transition={{ delay: i * 0.015, type: 'spring', damping: 24, stiffness: 300 }}
                       onClick={() => {
                         haptics.medium();
-                        setPeriod({ mode: 'month', year, month: i });
-                        close();
+                        onChange({ mode: 'month', year, month: i });
+                        onClose();
                       }}
                     >
                       <span className="month-name">{name}</span>
@@ -166,5 +182,23 @@ export function PeriodSheet() {
         )}
       </AnimatePresence>
     </Sheet>
+  );
+}
+
+/** Versión conectada al período global de la pantalla principal. */
+export function PeriodSheet() {
+  const open = useUiStore((s) => s.periodPickerOpen);
+  const setOpen = useUiStore((s) => s.setPeriodPickerOpen);
+  const period = useUiStore((s) => s.period);
+  const setPeriod = useUiStore((s) => s.setPeriod);
+
+  return (
+    <PeriodPickerSheet
+      open={open}
+      onClose={() => setOpen(false)}
+      period={period}
+      onChange={setPeriod}
+      z={110}
+    />
   );
 }
