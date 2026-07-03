@@ -42,9 +42,9 @@ export function Sheet({ open, onClose, children, title, headerAction, full, z = 
     if (!open || keyboardInset === 0) return;
     const active = document.activeElement;
     if (active instanceof HTMLElement && panelRef.current?.contains(active)) {
-      // Esperar a que termine la transición CSS de bottom/height (220ms)
+      // Esperar a que el spring de Framer (abajo) termine de asentarse
       // antes de medir dónde queda el elemento; si medimos a mitad de la
-      // transición, el navegador puede creer que ya está visible.
+      // animación, el navegador puede creer que ya está visible.
       const t = setTimeout(() => {
         active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }, 260);
@@ -89,24 +89,24 @@ export function Sheet({ open, onClose, children, title, headerAction, full, z = 
           className={`sheet-panel ${full ? 'sheet-full' : ''}`}
           style={{
             zIndex: z + 1,
-            // El teclado empuja el sheet hacia arriba justo lo necesario
-            // para quedar siempre visible encima de él — ver useKeyboardInset.
-            bottom: keyboardInset,
-            // OJO: --app-height (useAppHeight) YA se reduce al alto del
-            // visualViewport cuando hay un teclado real abierto, así que
-            // NO hay que restar keyboardInset otra vez aquí — restarlo dos
-            // veces (una vía --app-height, otra vía este cálculo) achicaba
-            // el panel muchísimo más de lo necesario y lo dejaba flotando
-            // a media pantalla con un hueco vacío enorme antes del teclado.
+            // Alto fijo basado en 100dvh (estable, no reacciona al
+            // teclado) en vez de --app-height: antes, tanto `bottom` como
+            // `height`/`max-height` cambiaban juntos vía transición CSS
+            // (que fuerza reflow) cada vez que el teclado cambiaba de
+            // alto — p. ej. al saltar de un campo con teclado numérico a
+            // uno con teclado completo. Eso era el temblor al cambiar de
+            // casillero. Ahora el alto queda fijo y el desplazamiento para
+            // esquivar el teclado se hace con `y` (más abajo), que anima
+            // por transform — compositor puro, sin reflow.
             ...(full
-              ? { height: `calc(var(--app-height, 100dvh) - var(--safe-top) - 12px)` }
-              : { maxHeight: `calc(var(--app-height, 100dvh) - var(--safe-top) - 32px)` }),
+              ? { height: `calc(100dvh - var(--safe-top) - 12px)` }
+              : { maxHeight: `calc(100dvh - var(--safe-top) - 32px)` }),
           }}
           role="dialog"
           aria-modal="true"
           aria-label={title}
           initial={{ y: '100%' }}
-          animate={{ y: 0 }}
+          animate={{ y: -keyboardInset }}
           exit={{ y: '110%' }}
           transition={spring}
         >
