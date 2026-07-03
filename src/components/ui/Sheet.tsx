@@ -92,9 +92,15 @@ export function Sheet({ open, onClose, children, title, headerAction, full, z = 
             // El teclado empuja el sheet hacia arriba justo lo necesario
             // para quedar siempre visible encima de él — ver useKeyboardInset.
             bottom: keyboardInset,
+            // OJO: --app-height (useAppHeight) YA se reduce al alto del
+            // visualViewport cuando hay un teclado real abierto, así que
+            // NO hay que restar keyboardInset otra vez aquí — restarlo dos
+            // veces (una vía --app-height, otra vía este cálculo) achicaba
+            // el panel muchísimo más de lo necesario y lo dejaba flotando
+            // a media pantalla con un hueco vacío enorme antes del teclado.
             ...(full
-              ? { height: `calc(var(--app-height, 100dvh) - var(--safe-top) - 12px - ${keyboardInset}px)` }
-              : { maxHeight: `calc(var(--app-height, 100dvh) - var(--safe-top) - 32px - ${keyboardInset}px)` }),
+              ? { height: `calc(var(--app-height, 100dvh) - var(--safe-top) - 12px)` }
+              : { maxHeight: `calc(var(--app-height, 100dvh) - var(--safe-top) - 32px)` }),
           }}
           role="dialog"
           aria-modal="true"
