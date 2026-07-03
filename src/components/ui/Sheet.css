@@ -11,8 +11,11 @@
 
 .sheet-panel {
   position: fixed;
-  /* bottom / height / max-height se fijan inline desde JS (useKeyboardInset),
-     así el sheet siempre queda justo encima del teclado — ver Sheet.tsx. */
+  /* bottom fijo: el desplazamiento para esquivar el teclado ya NO se hace
+     cambiando `bottom` (eso forzaba reflow en cada cambio de teclado — el
+     temblor al saltar entre casilleros); ahora Sheet.tsx anima `y` (un
+     transform), que es puramente de compositor. Alto también fijo, en
+     base a 100dvh — ver Sheet.tsx. */
   bottom: 0;
   left: 0;
   right: 0;
@@ -32,7 +35,6 @@
   overflow: hidden;
   will-change: transform;
   transform: translateZ(0);
-  transition: bottom 0.22s var(--ease-ios), height 0.22s var(--ease-ios), max-height 0.22s var(--ease-ios);
 }
 
 .sheet-header {
