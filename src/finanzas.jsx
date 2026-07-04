@@ -665,7 +665,7 @@ function AnimatedNumber({ value, format = fmt, className = "", style }) {
     if (from === value) return;
     prev.current = value;
     setPulse(true);
-    const t0 = performance.now(), dur = 1000;
+    const t0 = performance.now(), dur = 700;
     const tick = (t) => {
       const p = Math.min(1, (t - t0) / dur);
       const e = 1 - Math.pow(1 - p, 4);
