@@ -67,7 +67,7 @@ input::placeholder{color:var(--txt3);}
 .balance-wrap{text-align:center; padding:26px 0 8px; animation:rise .5s var(--ease-ios) both;}
 .balance-label{font-size:14px; font-weight:600; color:var(--txt2); letter-spacing:.06em; text-transform:uppercase;}
 .balance-row{display:flex; align-items:center; justify-content:center; gap:12px; margin-top:8px;}
-.balance-num{font-size:clamp(44px,12.5vw,60px); font-weight:800; letter-spacing:-.02em; line-height:1.05; display:inline-block;}
+.balance-num{font-size:clamp(44px,12.5vw,60px); font-weight:900; letter-spacing:-.02em; line-height:1.05; display:inline-block;}
 .sign-dot{
   width:30px;height:30px;border-radius:50%;display:grid;place-items:center;flex:none;
   color:#fff; transition:background .4s, box-shadow .4s, transform .4s var(--spring);
