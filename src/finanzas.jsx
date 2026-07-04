@@ -337,14 +337,15 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 .action-btn.destructive{color:var(--red);}
 
 /* ---------- swatches ---------- */
-.swatches{display:flex; flex-wrap:wrap; gap:11px; padding:4px 2px;}
+.swatches{display:flex; flex-wrap:wrap; gap:11px; padding:4px 2px; justify-content:center;}
 .swatch{width:34px; height:34px; border-radius:50%; transition:transform .25s var(--spring), box-shadow .25s;}
 .swatch:active{transform:scale(.88);}
 .swatch.on{box-shadow:0 0 0 3px var(--bg), 0 0 0 5.5px var(--txt); transform:scale(1.08);}
 .emoji-big-input{
-  width:92px; height:92px; margin:0 auto; display:block; text-align:center; font-size:52px; background:var(--card2);
+  width:92px; height:92px; margin:0 auto; display:block; text-align:center; font-size:52px; line-height:92px; padding:0; background:var(--card2);
   border:1px solid var(--line2); border-radius:28px; outline:none; caret-color:var(--accent); transition:border-color .2s;
 }
+.emoji-big-input::placeholder{color:var(--txt3); font-weight:300;}
 .emoji-big-input:focus{border-color:var(--accent);}
 
 .toast{
@@ -853,7 +854,7 @@ function CategoryFormSheet({ open, onClose, onSave, listName, initial }) {
           value={emoji}
           inputMode="text"
           aria-label="Emoji de la categoría"
-          placeholder="😀"
+          placeholder="+"
           onChange={(e) => { const g = firstGrapheme(e.target.value); setEmoji(g); if (g) haptic(4); }}
           style={{ boxShadow: emoji ? `0 8px 26px ${finalColor}44` : "none", background: emoji ? `linear-gradient(150deg, ${finalColor}, ${finalColor}B0)` : "var(--card2)" }}
         />
