@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
+import { cloudEnabled, supabase, fetchSocial, cloudApi, enablePush, EMPTY_SOCIAL } from "./cloud.js";
 
 /* ============================================================
    Finanzas — app de finanzas personales estilo iOS
@@ -359,6 +360,27 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 .spin{width:26px;height:26px;border-radius:50%;border:3px solid var(--card3);border-top-color:var(--accent);animation:sp 1s linear infinite;margin:40vh auto 0;}
 @keyframes sp{to{transform:rotate(360deg)}}
 
+/* ---------- social ---------- */
+.avatar-sm{border-radius:50%; background:linear-gradient(150deg,#3A3A40,#26262B); display:grid; place-items:center; font-weight:800; color:var(--txt2); overflow:hidden; flex:none;}
+.avatar-sm img{width:100%; height:100%; object-fit:cover;}
+.bell-wrap{position:relative;}
+.badge-dot{
+  position:absolute; top:-3px; right:-3px; min-width:17px; height:17px; border-radius:9px;
+  background:var(--red); color:#fff; font-size:10.5px; font-weight:800;
+  display:grid; place-items:center; padding:0 4px; border:2px solid var(--bg); z-index:1;
+}
+.notif-row{display:flex; gap:12px; padding:13px 14px; align-items:flex-start; position:relative;}
+.notif-row:not(:last-child)::after{content:""; position:absolute; left:64px; right:0; bottom:0; height:1px; background:var(--line);}
+.notif-main{flex:1; min-width:0;}
+.notif-title{font-size:14.5px; font-weight:700; line-height:1.35;}
+.notif-sub{font-size:12.5px; color:var(--txt2); font-weight:600; margin-top:2px;}
+.notif-actions{display:flex; gap:8px; margin-top:9px;}
+.btn-accept{padding:8px 18px; border-radius:14px; background:var(--accent); color:#fff; font-weight:700; font-size:13.5px; transition:transform .2s var(--spring);}
+.btn-accept:active{transform:scale(.95);}
+.btn-reject{padding:8px 18px; border-radius:14px; background:var(--card3); color:var(--txt); font-weight:700; font-size:13.5px; transition:transform .2s var(--spring);}
+.btn-reject:active{transform:scale(.95);}
+.cloud-hint{font-size:12.5px; color:var(--txt2); line-height:1.55; padding:14px 16px; font-weight:600;}
+
 @media (prefers-reduced-motion: reduce){
   .fin-app *, .fin-app *::before, .fin-app *::after{animation-duration:.01ms !important; transition-duration:.01ms !important;}
 }
@@ -405,6 +427,14 @@ const FREQS = [
 const freqLabel = (id) => (FREQS.find((f) => f.id === id) || {}).label || id;
 
 const haptic = (ms = 8) => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} };
+
+function timeAgo(iso) {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return "ahora";
+  if (s < 3600) return `hace ${Math.floor(s / 60)} min`;
+  if (s < 86400) return `hace ${Math.floor(s / 3600)} h`;
+  return `hace ${Math.floor(s / 86400)} d`;
+}
 
 function firstGrapheme(str) {
   if (!str) return "";
@@ -591,6 +621,10 @@ const Icon = memo(function Icon({ name, size = 18, color = "currentColor", strok
     case "check": return <svg {...P} strokeWidth={2.6}><polyline points="4.5 12.5 9.5 17.5 19.5 6.5" /></svg>;
     case "camera": return <svg {...P}><path d="M4 8h3l2-3h6l2 3h3v12H4z" /><circle cx="12" cy="13" r="3.5" /></svg>;
     case "cal": return <svg {...P}><rect x="3" y="5" width="18" height="16" rx="3" /><line x1="3" y1="10" x2="21" y2="10" /><line x1="8" y1="3" x2="8" y2="7" /><line x1="16" y1="3" x2="16" y2="7" /></svg>;
+    case "bell": return <svg {...P}><path d="M6 8a6 6 0 0 1 12 0c0 7 2 8 2 8H4s2-1 2-8" /><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" /></svg>;
+    case "users": return <svg {...P}><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c1.2-3.2 4-4.8 6.5-4.8s5.3 1.6 6.5 4.8" /><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8" /><path d="M17.5 15.4c2 .6 3.5 2 4.2 4.6" /></svg>;
+    case "userplus": return <svg {...P}><circle cx="10" cy="8" r="4" /><path d="M2.5 21c1.3-3.8 4.6-5.5 7.5-5.5 1.2 0 2.4.3 3.5.8" /><line x1="19" y1="14" x2="19" y2="20" /><line x1="16" y1="17" x2="22" y2="17" /></svg>;
+    case "logout": return <svg {...P}><path d="M9 4H5v16h4" /><path d="M14 8l4 4-4 4" /><line x1="8" y1="12" x2="18" y2="12" /></svg>;
     default: return null;
   }
 });
@@ -692,6 +726,17 @@ const EmojiBubble = memo(function EmojiBubble({ emoji, color, size = 44, fontSiz
       boxShadow: `0 4px 14px ${color}55, inset 0 1px 0 rgba(255,255,255,.28)`,
     }}>
       <span style={{ transform: "translateY(1px)" }}>{emoji}</span>
+    </div>
+  );
+});
+
+const Avatar = memo(function Avatar({ profile, size = 40 }) {
+  const name = (profile && (profile.name || profile.email)) || "?";
+  return (
+    <div className="avatar-sm" style={{ width: size, height: size, fontSize: size * 0.42 }}>
+      {profile && profile.photo
+        ? <img src={profile.photo} alt="" />
+        : (name.trim().charAt(0) || "?").toUpperCase()}
     </div>
   );
 });
@@ -888,8 +933,337 @@ function CategoryFormSheet({ open, onClose, onSave, listName, initial }) {
   );
 }
 
+/* ----------------------- Nube: hook de estado social ----------------------- */
+function notifToastInfo(n) {
+  const p = n.payload || {};
+  if (n.kind === "movement") return { emoji: "👥", text: `${(p.author && p.author.name) || "Alguien"} agregó un movimiento` };
+  if (n.kind === "friend_request") return { emoji: "🤝", text: `${(p.from && p.from.name) || "Alguien"} quiere añadirte como amigo` };
+  if (n.kind === "list_invite") return { emoji: "📨", text: `${(p.from && p.from.name) || "Alguien"} quiere añadirte a una lista compartida` };
+  return null;
+}
+
+function useCloud(showToast) {
+  const [session, setSession] = useState(null);
+  const [social, setSocial] = useState(EMPTY_SOCIAL);
+  const uid = session && session.user ? session.user.id : null;
+  const refetchTimer = useRef(null);
+  const syncTimer = useRef(null);
+
+  const refetch = useCallback(() => {
+    if (!uid) return;
+    clearTimeout(refetchTimer.current);
+    refetchTimer.current = setTimeout(async () => {
+      try { setSocial(await fetchSocial(uid)); }
+      catch (e) { console.error("No se pudo sincronizar", e); }
+    }, 200);
+  }, [uid]);
+
+  /* sesión */
+  useEffect(() => {
+    if (!cloudEnabled) return;
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  /* datos + tiempo real */
+  useEffect(() => {
+    if (!uid) { setSocial(EMPTY_SOCIAL); return; }
+    refetch();
+    let ch = supabase.channel("social-" + uid)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${uid}` }, (payload) => {
+        refetch();
+        if (payload.eventType === "INSERT" && payload.new) {
+          const t = notifToastInfo(payload.new);
+          if (t) showToast(t.emoji, t.text);
+        }
+      });
+    for (const t of ["shared_transactions", "shared_categories", "shared_lists", "list_members", "friendships", "friend_requests", "profiles"]) {
+      ch = ch.on("postgres_changes", { event: "*", schema: "public", table: t }, refetch);
+    }
+    ch.subscribe();
+    const onVis = () => { if (document.visibilityState === "visible") refetch(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { supabase.removeChannel(ch); document.removeEventListener("visibilitychange", onVis); };
+  }, [uid, refetch, showToast]);
+
+  /* renovar la suscripción push si ya hay permiso */
+  useEffect(() => {
+    if (uid && typeof Notification !== "undefined" && Notification.permission === "granted") {
+      enablePush(uid).catch(() => {});
+    }
+  }, [uid]);
+
+  const api = useMemo(() => {
+    const err = (e) => showToast("⚠️", (e && e.message) || "Error de conexión");
+    const call = async (q) => {
+      const { data: d, error } = await q;
+      if (error) { err(error); return null; }
+      refetch();
+      return d;
+    };
+    return {
+      signIn: async (email, pass) => {
+        const { error } = await cloudApi.signIn(email, pass);
+        if (error) showToast("⚠️", "Correo o contraseña incorrectos");
+      },
+      signUp: async (email, pass, name) => {
+        const { data: d, error } = await cloudApi.signUp(email, pass, name);
+        if (error) err(error);
+        else if (!d.session) showToast("📧", "Revisa tu correo para confirmar la cuenta");
+      },
+      signOut: () => cloudApi.signOut(),
+      syncProfile: (patch) => {
+        if (!uid) return;
+        clearTimeout(syncTimer.current);
+        syncTimer.current = setTimeout(() => { cloudApi.updateProfile(uid, patch).then(() => refetch()); }, 800);
+      },
+      sendFriendRequest: async (email) => {
+        const { data: d, error } = await cloudApi.sendFriendRequest(email);
+        if (error) { err(error); return null; }
+        const msgs = {
+          ok: ["📨", "Solicitud enviada"],
+          not_found: ["🔍", "No existe una cuenta con ese correo"],
+          self: ["🙃", "Ese es tu propio correo"],
+          already_friends: ["👥", "Ya son amigos"],
+          already_sent: ["⏳", "Ya le enviaste una solicitud"],
+          incoming_exists: ["📬", "Esa persona ya te envió una solicitud: revisa tus notificaciones"],
+        };
+        const m = msgs[d] || msgs.ok;
+        showToast(m[0], m[1]);
+        refetch();
+        return d;
+      },
+      respondFriendRequest: async (id, accept) => {
+        const { error } = await cloudApi.respondFriendRequest(id, accept);
+        if (error) err(error);
+        else showToast(accept ? "🤝" : "🗑️", accept ? "Solicitud aceptada" : "Solicitud rechazada");
+        refetch();
+      },
+      removeFriend: async (fid) => {
+        const { error } = await cloudApi.removeFriend(fid);
+        if (error) err(error); else showToast("👋", "Amigo eliminado");
+        refetch();
+      },
+      createSharedList: async (name) => {
+        const { data: d, error } = await cloudApi.createSharedList(name);
+        if (error) { err(error); return null; }
+        showToast("✨", "Lista compartida creada");
+        refetch();
+        return d;
+      },
+      renameSharedList: (id, name) => call(cloudApi.renameSharedList(id, name)),
+      leaveSharedList: async (id) => {
+        const { error } = await cloudApi.leaveSharedList(id);
+        if (error) err(error);
+        refetch();
+      },
+      inviteToList: async (listId, fid) => {
+        const { data: d, error } = await cloudApi.inviteToList(listId, fid);
+        if (error) { err(error); return null; }
+        const msgs = {
+          ok: ["📨", "Invitación enviada"],
+          already_invited: ["⏳", "Ya tiene una invitación pendiente"],
+          already_member: ["👥", "Ya es miembro de la lista"],
+          not_friends: ["🤝", "Primero deben ser amigos"],
+          not_member: ["⚠️", "No perteneces a esa lista"],
+        };
+        const m = msgs[d] || msgs.ok;
+        showToast(m[0], m[1]);
+        refetch();
+        return d;
+      },
+      respondListInvite: async (id, accept) => {
+        const { error } = await cloudApi.respondListInvite(id, accept);
+        if (error) err(error);
+        else showToast(accept ? "📋" : "🗑️", accept ? "Te uniste a la lista compartida" : "Invitación rechazada");
+        refetch();
+      },
+      addCategory: async (listId, p) => {
+        try { const c = await cloudApi.addCategory(listId, p); refetch(); return c; }
+        catch (e) { err(e); return null; }
+      },
+      updateCategory: (id, p) => call(cloudApi.updateCategory(id, p)),
+      deleteCategory: (id) => call(cloudApi.deleteCategory(id)),
+      addTransaction: (p) => call(cloudApi.addTransaction(uid, p)),
+      editTransaction: (id, p) => call(cloudApi.editTransaction(id, p)),
+      deleteTransaction: (id) => call(cloudApi.deleteTransaction(id)),
+      markNotificationsRead: () => call(cloudApi.markNotificationsRead()),
+      deleteNotification: (id) => call(cloudApi.deleteNotification(id)),
+      enablePush: async () => {
+        if (!uid) return "auth";
+        try {
+          const r = await enablePush(uid);
+          const msgs = {
+            ok: ["🔔", "Notificaciones push activadas"],
+            denied: ["🔕", "Permiso de notificaciones denegado"],
+            unsupported: ["⚠️", "Este dispositivo no soporta push"],
+            no_key: ["⚠️", "Falta la clave VAPID en config.js"],
+            error: ["⚠️", "No se pudo activar el push"],
+          };
+          const m = msgs[r] || msgs.error;
+          showToast(m[0], m[1]);
+          return r;
+        } catch (e) { showToast("⚠️", "No se pudo activar el push"); return "error"; }
+      },
+    };
+  }, [uid, refetch, showToast]);
+
+  return { enabled: cloudEnabled, session, uid, social, api, refetch };
+}
+
+/* ----------------------- Social: acceso, notificaciones, invitaciones ----------------------- */
+function AuthBox({ cloud, showToast, defaultName }) {
+  const [mode, setMode] = useState("login");
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
+  const [name, setName] = useState(defaultName || "");
+  const [busy, setBusy] = useState(false);
+  const valid = /\S+@\S+\.\S+/.test(email) && pass.length >= 6 && (mode === "login" || name.trim().length > 0);
+
+  const submit = async () => {
+    if (!valid || busy) return;
+    haptic(14);
+    setBusy(true);
+    if (mode === "login") await cloud.api.signIn(email, pass);
+    else await cloud.api.signUp(email, pass, name.trim());
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ padding: "6px 14px 14px" }}>
+      <div className="cloud-hint" style={{ padding: "4px 2px 10px" }}>
+        Inicia sesión para agregar amigos y compartir listas en tiempo real.
+      </div>
+      <Segmented
+        options={[{ id: "login", label: "Entrar" }, { id: "signup", label: "Crear cuenta" }]}
+        value={mode} onChange={setMode} className="mini" />
+      <div className="f-group" style={{ marginTop: 14 }}>
+        {mode === "signup" && (
+          <div className="f-row">
+            <span className="f-label">Nombre</span>
+            <input className="f-input" value={name} placeholder="Tu nombre" maxLength={30} onChange={(e) => setName(e.target.value)} />
+          </div>
+        )}
+        <div className="f-row">
+          <span className="f-label">Correo</span>
+          <input className="f-input" type="email" autoComplete="email" value={email} placeholder="tu@correo.com" onChange={(e) => setEmail(e.target.value)} />
+        </div>
+        <div className="f-row">
+          <span className="f-label">Contraseña</span>
+          <input className="f-input" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"}
+            value={pass} placeholder="Mínimo 6 caracteres" onChange={(e) => setPass(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
+        </div>
+      </div>
+      <button className="primary-btn" disabled={!valid || busy} onClick={submit}>
+        {busy ? "Un momento…" : mode === "login" ? "Entrar" : "Crear cuenta"}
+      </button>
+    </div>
+  );
+}
+
+function NotifRow({ n, cloud }) {
+  const p = n.payload || {};
+  let from = null, title = "", sub = "", actionable = false;
+  if (n.kind === "movement") {
+    from = p.author;
+    title = `${(p.author && p.author.name) || "Alguien"} agregó un movimiento`;
+    const amt = `${p.type === "income" ? "+" : "−"}${fmt(Number(p.amount || 0))}`;
+    sub = [p.list_name, p.description, amt, timeAgo(n.created_at)].filter(Boolean).join(" · ");
+  } else if (n.kind === "friend_request") {
+    from = p.from;
+    title = `${(p.from && p.from.name) || "Alguien"} quiere añadirte como amigo`;
+    sub = `Solicitud de amistad · ${timeAgo(n.created_at)}`;
+    actionable = true;
+  } else if (n.kind === "list_invite") {
+    from = p.from;
+    title = `${(p.from && p.from.name) || "Alguien"} quiere añadirte a una lista compartida`;
+    sub = `${p.list_name ? `Lista: ${p.list_name} · ` : ""}${timeAgo(n.created_at)}`;
+    actionable = true;
+  } else return null;
+
+  const respond = (accept) => {
+    haptic(12);
+    if (n.kind === "friend_request") cloud.api.respondFriendRequest(p.request_id, accept);
+    else cloud.api.respondListInvite(p.invite_id, accept);
+  };
+
+  return (
+    <div className="notif-row">
+      <Avatar profile={from} size={40} />
+      <div className="notif-main">
+        <div className="notif-title">{title}</div>
+        <div className="notif-sub">{sub}</div>
+        {actionable && (
+          <div className="notif-actions">
+            <button className="btn-accept" onClick={() => respond(true)}>Aceptar</button>
+            <button className="btn-reject" onClick={() => respond(false)}>Rechazar</button>
+          </div>
+        )}
+      </div>
+      {!actionable && (
+        <button className="mini-btn" aria-label="Eliminar notificación" onClick={() => { haptic(); cloud.api.deleteNotification(n.id); }}>
+          <Icon name="x" size={13} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function NotificationsSheet({ open, onClose, cloud }) {
+  const notifs = cloud.social.notifications;
+  const hasUnread = notifs.some((n) => !n.read);
+  useEffect(() => { if (open && hasUnread) cloud.api.markNotificationsRead(); }, [open, hasUnread]);
+  return (
+    <Sheet open={open} onClose={onClose} title="Notificaciones">
+      {notifs.length === 0 ? (
+        <EmptyState emoji="🔕" title="Sin notificaciones"
+          sub="Aquí verás solicitudes de amistad, invitaciones y movimientos de tus listas compartidas." />
+      ) : (
+        <div className="f-group">
+          {notifs.map((n) => <NotifRow key={n.id} n={n} cloud={cloud} />)}
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
+function InviteSheet({ open, onClose, list, cloud }) {
+  const listId = list ? list.id : null;
+  const memberIds = useMemo(
+    () => new Set(cloud.social.members.filter((m) => m.listId === listId).map((m) => m.userId)),
+    [cloud.social.members, listId]
+  );
+  return (
+    <Sheet open={open} onClose={onClose} title={list ? `Invitar a “${list.name}”` : "Invitar"}>
+      {cloud.social.friends.length === 0 ? (
+        <EmptyState emoji="👥" title="Aún no tienes amigos"
+          sub="Agrega amigos desde tu perfil para poder invitarlos a listas compartidas." />
+      ) : (
+        <div className="f-group">
+          {cloud.social.friends.map((f) => (
+            <div key={f.id} className="f-row" style={{ padding: "11px 14px" }}>
+              <Avatar profile={f} size={40} />
+              <span style={{ flex: 1, fontWeight: 600, fontSize: 15, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {f.name || f.email}
+              </span>
+              {memberIds.has(f.id) ? (
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--txt3)" }}>Miembro</span>
+              ) : (
+                <button className="chip" style={{ padding: "7px 14px" }}
+                  onClick={() => { haptic(12); cloud.api.inviteToList(listId, f.id); }}>Invitar</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
 /* ----------------------- Formulario de transacción ----------------------- */
-function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, onCreateCategory }) {
+function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, onCreateCategory, sharedListIds }) {
   const editing = !!(initial && initial.id);
   const [type, setType] = useState("expense");
   const [amount, setAmount] = useState("");
@@ -920,10 +1294,12 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
   const amt = parseFloat(String(amount).replace(",", "."));
   const valid = !isNaN(amt) && amt > 0 && !!catId && !!date && !!listId;
   const list = data.lists.find((l) => l.id === listId);
+  const isSharedList = !!(sharedListIds && sharedListIds.has(listId));
 
   const handleCreateCat = (payload) => {
-    const cat = onCreateCategory(listId, payload);
-    setCatId(cat.id);
+    const res = onCreateCategory(listId, payload);
+    if (res && typeof res.then === "function") res.then((c) => { if (c && c.id) setCatId(c.id); });
+    else if (res && res.id) setCatId(res.id);
   };
 
   return (
@@ -933,7 +1309,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
           <button className="primary-btn" style={{ marginTop: 12 }} disabled={!valid}
             onClick={() => {
               haptic(16);
-              onSubmit({ type, amount: Math.round(amt * 100) / 100, description: desc.trim(), listId, categoryId: catId, date, frequency: freq });
+              onSubmit({ type, amount: Math.round(amt * 100) / 100, description: desc.trim(), listId, categoryId: catId, date, frequency: isSharedList ? "none" : freq });
               onClose();
             }}>
             {editing ? "Guardar cambios" : "Agregar movimiento"}
@@ -983,21 +1359,28 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
           <div className="f-row">
             <span className="f-label">Lista</span>
             <select className="f-input" value={listId} onChange={(e) => { haptic(); setListId(e.target.value); }}>
-              {data.lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              {data.lists.map((l) => <option key={l.id} value={l.id}>{l.shared ? `${l.name} 👥` : l.name}</option>)}
             </select>
           </div>
           <div className="f-row">
             <span className="f-label">Fecha</span>
             <input type="date" className="f-input" value={date} max="2100-12-31" onChange={(e) => e.target.value && setDate(e.target.value)} />
           </div>
-          <div className="f-row">
-            <span className="f-label">Repetición</span>
-            <select className="f-input" value={freq} onChange={(e) => { haptic(); setFreq(e.target.value); }} disabled={editing && initial.recurringId}>
-              {FREQS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
-            </select>
-          </div>
+          {!isSharedList && (
+            <div className="f-row">
+              <span className="f-label">Repetición</span>
+              <select className="f-input" value={freq} onChange={(e) => { haptic(); setFreq(e.target.value); }} disabled={editing && initial.recurringId}>
+                {FREQS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+              </select>
+            </div>
+          )}
         </div>
-        {freq !== "none" && !editing && (
+        {isSharedList && (
+          <div style={{ fontSize: 12.5, color: "var(--txt2)", margin: "0 4px 8px", fontWeight: 600, lineHeight: 1.5 }}>
+            👥 Lista compartida: los demás miembros verán este movimiento al instante.
+          </div>
+        )}
+        {!isSharedList && freq !== "none" && !editing && (
           <div style={{ fontSize: 12.5, color: "var(--txt2)", margin: "0 4px 8px", fontWeight: 600, lineHeight: 1.5 }}>
             🔁 Se creará automáticamente {freqLabel(freq).toLowerCase()} a partir del {fmtDate(date)}. Puedes gestionarlo desde tu perfil.
           </div>
@@ -1084,10 +1467,10 @@ function PeriodSheet({ open, onClose, period, setPeriod, txs }) {
 }
 
 /* ----------------------- Selector de lista ----------------------- */
-function ListSheet({ open, onClose, data, onSelect, onCreate }) {
-  const [adding, setAdding] = useState(false);
+function ListSheet({ open, onClose, data, onSelect, onCreate, canShare }) {
+  const [adding, setAdding] = useState(null); // null | "local" | "shared"
   const [name, setName] = useState("");
-  useEffect(() => { if (open) { setAdding(false); setName(""); } }, [open]);
+  useEffect(() => { if (open) { setAdding(null); setName(""); } }, [open]);
 
   const balances = useMemo(() => {
     const m = new Map();
@@ -1105,7 +1488,7 @@ function ListSheet({ open, onClose, data, onSelect, onCreate }) {
           const on = l.id === data.activeListId;
           return (
             <button key={l.id} className="row-pick" onClick={() => { haptic(12); onSelect(l.id); onClose(); }}>
-              <div className="r-main">{l.name}
+              <div className="r-main">{l.name}{l.shared ? <span style={{ marginLeft: 7, fontSize: 12.5 }}>👥</span> : null}
                 <div className="r-sub" style={{ color: v > 0.004 ? "var(--green)" : v < -0.004 ? "var(--red)" : "var(--txt3)" }}>
                   {(v > 0.004 ? "+" : v < -0.004 ? "−" : "") + fmt(v)}
                 </div>
@@ -1118,17 +1501,27 @@ function ListSheet({ open, onClose, data, onSelect, onCreate }) {
       {adding ? (
         <div className="f-group content-swap">
           <div className="f-row">
-            <input className="f-input left" autoFocus value={name} placeholder="Nombre de la lista" maxLength={28} onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) { onCreate(name.trim()); onClose(); } }} />
+            <input className="f-input left" autoFocus value={name}
+              placeholder={adding === "shared" ? "Nombre de la lista compartida" : "Nombre de la lista"} maxLength={28}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) { onCreate(name.trim(), adding === "shared"); onClose(); } }} />
             <button className="chip" style={{ padding: "7px 14px" }} disabled={!name.trim()}
-              onClick={() => { if (name.trim()) { haptic(14); onCreate(name.trim()); onClose(); } }}>Crear</button>
+              onClick={() => { if (name.trim()) { haptic(14); onCreate(name.trim(), adding === "shared"); onClose(); } }}>Crear</button>
           </div>
         </div>
       ) : (
-        <button className="add-row" style={{ borderRadius: 18, background: "var(--card)", border: "1px solid var(--line)" }}
-          onClick={() => { haptic(); setAdding(true); }}>
-          <Icon name="plus" size={17} /> Nueva lista
-        </button>
+        <>
+          <button className="add-row" style={{ borderRadius: 18, background: "var(--card)", border: "1px solid var(--line)" }}
+            onClick={() => { haptic(); setAdding("local"); }}>
+            <Icon name="plus" size={17} /> Nueva lista
+          </button>
+          {canShare && (
+            <button className="add-row" style={{ borderRadius: 18, background: "var(--card)", border: "1px solid var(--line)", marginTop: 8 }}
+              onClick={() => { haptic(); setAdding("shared"); }}>
+              <Icon name="users" size={17} /> Nueva lista compartida
+            </button>
+          )}
+        </>
       )}
     </Sheet>
   );
@@ -1276,14 +1669,17 @@ function GrayIconBubble({ emoji }) {
   return <div className="ebubble" style={{ width: 40, height: 40, fontSize: 20, background: "linear-gradient(150deg,#3A3A40,#2A2A2F)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.12)" }}>{emoji}</div>;
 }
 
-function ProfileScreen({ requestClose, data, actions, showToast }) {
-  const [open, setOpen] = useState(null); // 'cats' | 'lists' | 'rec'
+function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedListIds }) {
+  const [open, setOpen] = useState(null); // 'friends' | 'cats' | 'lists' | 'rec'
   const [catListId, setCatListId] = useState(data.activeListId);
   const [catForm, setCatForm] = useState(null);   // {initial} | 'new'
   const [renameL, setRenameL] = useState(null);   // lista a renombrar
   const [newList, setNewList] = useState(false);
   const [confirm, setConfirm] = useState(null);   // {title,message,label,fn}
   const [recEdit, setRecEdit] = useState(null);   // regla recurrente en edición
+  const [friendEmail, setFriendEmail] = useState("");
+  const [newSharedList, setNewSharedList] = useState(false);
+  const [inviteList, setInviteList] = useState(null); // lista compartida a la que invitar
   const fileRef = useRef(null);
 
   const listName = (id) => { const l = data.lists.find((x) => x.id === id); return l ? l.name : "—"; };
@@ -1328,6 +1724,78 @@ function ProfileScreen({ requestClose, data, actions, showToast }) {
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={pickPhoto} />
           <input className="name-input" value={data.profile.name} placeholder="Tu nombre" maxLength={30}
             onChange={(e) => actions.setProfile({ name: e.target.value })} />
+        </div>
+
+        {/* -------- Amigos -------- */}
+        <div className="disclosure">
+          <button className="disc-head" onClick={() => toggle("friends")} aria-expanded={open === "friends"}>
+            <GrayIconBubble emoji="👥" />
+            <span className="disc-title">Amigos y listas compartidas</span>
+            <span className={`chev ${open === "friends" ? "open" : ""}`}><Icon name="chevR" size={16} /></span>
+          </button>
+          {open === "friends" && (
+            <div className="disc-body">
+              {!cloud.enabled ? (
+                <div className="cloud-hint">
+                  Para usar amigos y listas compartidas necesitas conectar la app a Supabase:
+                  edita el archivo <b>config.js</b> con la URL y la clave de tu proyecto (los pasos completos están en el README).
+                </div>
+              ) : !cloud.uid ? (
+                <AuthBox cloud={cloud} showToast={showToast} defaultName={data.profile.name} />
+              ) : (
+                <>
+                  <div className="f-row" style={{ padding: "11px 14px" }}>
+                    <Avatar profile={cloud.social.profile} size={40} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {(cloud.social.profile && cloud.social.profile.name) || "Sin nombre"}
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--txt2)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {cloud.session.user.email}
+                      </div>
+                    </div>
+                    <button className="mini-btn" aria-label="Cerrar sesión" onClick={() => { haptic(); cloud.api.signOut(); }}>
+                      <Icon name="logout" size={14} />
+                    </button>
+                  </div>
+                  <div className="f-row" style={{ padding: "8px 14px" }}>
+                    <input className="f-input left" type="email" value={friendEmail} placeholder="correo@de-tu-amigo.com"
+                      onChange={(e) => setFriendEmail(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && friendEmail.trim()) { cloud.api.sendFriendRequest(friendEmail); setFriendEmail(""); } }} />
+                    <button className="chip" style={{ padding: "7px 14px" }} disabled={!friendEmail.trim()}
+                      onClick={() => { haptic(12); cloud.api.sendFriendRequest(friendEmail); setFriendEmail(""); }}>Agregar</button>
+                  </div>
+                  {cloud.social.friends.length === 0 ? (
+                    <div className="cloud-hint">
+                      Aún no tienes amigos agregados. Escribe el correo de tu amigo y envíale una solicitud:
+                      le llegará una notificación para aceptarla.
+                    </div>
+                  ) : cloud.social.friends.map((f) => (
+                    <div key={f.id} className="f-row" style={{ padding: "11px 14px" }}>
+                      <Avatar profile={f} size={40} />
+                      <span style={{ flex: 1, fontWeight: 600, fontSize: 15, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {f.name || f.email}
+                      </span>
+                      <button className="mini-btn del" aria-label={`Eliminar a ${f.name || f.email}`} onClick={() => {
+                        haptic();
+                        setConfirm({
+                          title: `¿Eliminar a “${f.name || f.email}”?`,
+                          message: "Se eliminará de la lista de amigos de ambos. Podrán volver a agregarse más adelante.",
+                          fn: () => cloud.api.removeFriend(f.id),
+                        });
+                      }}><Icon name="trash" size={14} /></button>
+                    </div>
+                  ))}
+                  <button className="add-row" onClick={() => { haptic(); setNewSharedList(true); }}>
+                    <Icon name="plus" size={16} /> Crear lista compartida
+                  </button>
+                  <button className="add-row" onClick={() => { haptic(); cloud.api.enablePush(); }}>
+                    <Icon name="bell" size={16} /> Activar notificaciones push
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* -------- Categorías -------- */}
@@ -1376,26 +1844,48 @@ function ProfileScreen({ requestClose, data, actions, showToast }) {
           </button>
           {open === "lists" && (
             <div className="disc-body">
-              {data.lists.map((l) => (
-                <div key={l.id} className="f-row" style={{ padding: "11px 14px" }}>
-                  <span style={{ flex: 1, fontWeight: 600, fontSize: 15 }}>{l.name}
-                    {l.id === data.activeListId && <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 800, marginLeft: 8 }}>ACTIVA</span>}
-                  </span>
-                  <div className="mini-actions">
-                    <button className="mini-btn" aria-label={`Renombrar ${l.name}`} onClick={() => { haptic(); setRenameL(l); }}><Icon name="pencil" size={14} /></button>
-                    <button className="mini-btn del" aria-label={`Eliminar ${l.name}`} onClick={() => {
-                      haptic();
-                      if (data.lists.length === 1) { showToast("⚠️", "Necesitas al menos una lista"); return; }
-                      const n = data.transactions.filter((t) => t.listId === l.id).length;
-                      setConfirm({
-                        title: `¿Eliminar “${l.name}”?`,
-                        message: `Se eliminarán sus categorías, recurrencias y ${n} movimiento${n === 1 ? "" : "s"}. Esta acción no se puede deshacer.`,
-                        fn: () => { actions.deleteList(l.id); showToast("🗑️", "Lista eliminada"); },
-                      });
-                    }}><Icon name="trash" size={14} /></button>
+              {data.lists.map((l) => {
+                const isShared = !!l.shared;
+                const isOwner = isShared && cloud && l.owner === cloud.uid;
+                const nMembers = isShared ? cloud.social.members.filter((m) => m.listId === l.id).length : 0;
+                return (
+                  <div key={l.id} className="f-row" style={{ padding: "11px 14px" }}>
+                    <span style={{ flex: 1, fontWeight: 600, fontSize: 15, minWidth: 0 }}>{l.name}
+                      {l.id === data.activeListId && <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 800, marginLeft: 8 }}>ACTIVA</span>}
+                      {isShared && (
+                        <div style={{ fontSize: 11.5, color: "var(--txt2)", fontWeight: 700, marginTop: 2 }}>
+                          👥 Compartida{nMembers ? ` · ${nMembers} miembro${nMembers === 1 ? "" : "s"}` : ""}
+                        </div>
+                      )}
+                    </span>
+                    <div className="mini-actions">
+                      {isShared && (
+                        <button className="mini-btn" aria-label={`Invitar amigos a ${l.name}`} onClick={() => { haptic(); setInviteList(l); }}>
+                          <Icon name="userplus" size={14} />
+                        </button>
+                      )}
+                      <button className="mini-btn" aria-label={`Renombrar ${l.name}`} onClick={() => { haptic(); setRenameL(l); }}><Icon name="pencil" size={14} /></button>
+                      <button className="mini-btn del" aria-label={isShared && !isOwner ? `Salir de ${l.name}` : `Eliminar ${l.name}`} onClick={() => {
+                        haptic();
+                        if (!isShared && data.lists.filter((x) => !x.shared).length === 1) { showToast("⚠️", "Necesitas al menos una lista"); return; }
+                        const n = data.transactions.filter((t) => t.listId === l.id).length;
+                        setConfirm(isShared ? {
+                          title: isOwner ? `¿Eliminar “${l.name}”?` : `¿Salir de “${l.name}”?`,
+                          message: isOwner
+                            ? "Es una lista compartida: se eliminará para todos los miembros junto con sus movimientos."
+                            : "Saldrás de esta lista compartida. Los demás miembros la conservarán.",
+                          label: isOwner ? "Eliminar" : "Salir",
+                          fn: () => { actions.deleteList(l.id); showToast("🗑️", isOwner ? "Lista eliminada" : "Saliste de la lista"); },
+                        } : {
+                          title: `¿Eliminar “${l.name}”?`,
+                          message: `Se eliminarán sus categorías, recurrencias y ${n} movimiento${n === 1 ? "" : "s"}. Esta acción no se puede deshacer.`,
+                          fn: () => { actions.deleteList(l.id); showToast("🗑️", "Lista eliminada"); },
+                        });
+                      }}><Icon name="trash" size={14} /></button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               <button className="add-row" onClick={() => { haptic(); setNewList(true); }}><Icon name="plus" size={16} /> Agregar lista</button>
             </div>
           )}
@@ -1447,7 +1937,9 @@ function ProfileScreen({ requestClose, data, actions, showToast }) {
           )}
         </div>
         <div style={{ textAlign: "center", fontSize: 12, color: "var(--txt3)", fontWeight: 600, padding: "18px 0 6px" }}>
-          Tus datos se guardan de forma segura en este dispositivo.
+          {cloud.uid
+            ? "Tus datos locales se guardan en este dispositivo; las listas compartidas se sincronizan en tiempo real."
+            : "Tus datos se guardan de forma segura en este dispositivo."}
         </div>
       </div>
 
@@ -1464,7 +1956,7 @@ function ProfileScreen({ requestClose, data, actions, showToast }) {
       <PromptSheet open={newList} onClose={() => setNewList(false)} title="Nueva lista" placeholder="Ej. Viajes" confirmLabel="Crear"
         onConfirm={(v) => { actions.createList(v); showToast("✨", "Lista creada"); }} />
       <TxFormSheet
-        open={!!recEdit} onClose={() => setRecEdit(null)} data={data} defaultListId={data.activeListId}
+        open={!!recEdit} onClose={() => setRecEdit(null)} data={data} defaultListId={data.activeListId} sharedListIds={sharedListIds}
         initial={recEdit && !recEdit.__new ? { id: recEdit.id, type: recEdit.type, amount: recEdit.amount, description: recEdit.description, listId: recEdit.listId, categoryId: recEdit.categoryId, date: recEdit.nextDate || recEdit.startDate, frequency: recEdit.frequency } : null}
         onCreateCategory={(lid, p) => actions.createCategory(lid, p)}
         onSubmit={(p) => {
@@ -1478,7 +1970,11 @@ function ProfileScreen({ requestClose, data, actions, showToast }) {
           }
         }}
       />
-      <ConfirmSheet open={!!confirm} onClose={() => setConfirm(null)} title={confirm ? confirm.title : ""} message={confirm ? confirm.message : ""} onConfirm={() => confirm && confirm.fn()} />
+      <ConfirmSheet open={!!confirm} onClose={() => setConfirm(null)} title={confirm ? confirm.title : ""} message={confirm ? confirm.message : ""}
+        confirmLabel={confirm && confirm.label ? confirm.label : "Eliminar"} onConfirm={() => confirm && confirm.fn()} />
+      <PromptSheet open={newSharedList} onClose={() => setNewSharedList(false)} title="Nueva lista compartida" placeholder="Ej. Casa, Pareja, Viaje…" confirmLabel="Crear"
+        onConfirm={(v) => cloud.api.createSharedList(v)} />
+      <InviteSheet open={!!inviteList} onClose={() => setInviteList(null)} list={inviteList} cloud={cloud} />
     </>
   );
 }
@@ -1499,6 +1995,7 @@ export default function App() {
   const [listOpen, setListOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
 
@@ -1507,6 +2004,8 @@ export default function App() {
     setToast({ id: Date.now(), emoji, text });
     toastTimer.current = setTimeout(() => setToast(null), 2200);
   }, []);
+
+  const cloud = useCloud(showToast);
 
   /* carga inicial + generación de recurrencias */
   useEffect(() => {
@@ -1595,17 +2094,70 @@ export default function App() {
     deleteRecurring: (id) => update((d) => ({ ...d, recurring: d.recurring.filter((r) => r.id !== id) })),
   }), [update]);
 
+  /* ----------------- fusión con datos compartidos (nube) ----------------- */
+  const sharedListIds = useMemo(() => new Set(cloud.social.lists.map((l) => l.id)), [cloud.social.lists]);
+  const sharedCatIds = useMemo(() => new Set(cloud.social.categories.map((c) => c.id)), [cloud.social.categories]);
+  const sharedTxIds = useMemo(() => new Set(cloud.social.transactions.map((t) => t.id)), [cloud.social.transactions]);
+
+  const viewData = useMemo(() => {
+    if (!data) return null;
+    if (!cloud.uid || cloud.social.lists.length === 0) return data;
+    return {
+      ...data,
+      lists: [...data.lists, ...cloud.social.lists.map((l) => ({ id: l.id, name: l.name, shared: true, owner: l.owner }))],
+      categories: [...data.categories, ...cloud.social.categories],
+      transactions: [...data.transactions, ...cloud.social.transactions],
+    };
+  }, [data, cloud.uid, cloud.social]);
+
+  /* enruta cada acción a lo local o a la nube según la lista/el elemento */
+  const routedActions = useMemo(() => ({
+    ...actions,
+    setProfile: (patch) => { actions.setProfile(patch); if (cloud.uid) cloud.api.syncProfile(patch); },
+    createCategory: (listId, p) => (sharedListIds.has(listId) ? cloud.api.addCategory(listId, p) : actions.createCategory(listId, p)),
+    updateCategory: (id, patch) => (sharedCatIds.has(id) ? cloud.api.updateCategory(id, patch) : actions.updateCategory(id, patch)),
+    deleteCategory: (id) => (sharedCatIds.has(id) ? cloud.api.deleteCategory(id) : actions.deleteCategory(id)),
+    renameList: (id, name) => (sharedListIds.has(id) ? cloud.api.renameSharedList(id, name) : actions.renameList(id, name)),
+    deleteList: (id) => (sharedListIds.has(id) ? cloud.api.leaveSharedList(id) : actions.deleteList(id)),
+    addTransaction: (p) => (sharedListIds.has(p.listId) ? cloud.api.addTransaction(p) : actions.addTransaction(p)),
+    editTransaction: (id, p) => {
+      const was = sharedTxIds.has(id), now = sharedListIds.has(p.listId);
+      if (was && now) return cloud.api.editTransaction(id, p);
+      if (!was && !now) return actions.editTransaction(id, p);
+      if (was && !now) { cloud.api.deleteTransaction(id); return actions.addTransaction(p); }
+      actions.deleteTransaction(id);
+      return cloud.api.addTransaction(p);
+    },
+    deleteTransaction: (id) => (sharedTxIds.has(id) ? cloud.api.deleteTransaction(id) : actions.deleteTransaction(id)),
+  }), [actions, cloud.api, cloud.uid, sharedListIds, sharedCatIds, sharedTxIds]);
+
+  /* al iniciar sesión: reconciliar nombre y foto entre el perfil local y el de la nube */
+  const syncedProfileRef = useRef(null);
+  useEffect(() => {
+    const p = cloud.social.profile;
+    if (!p || !data || syncedProfileRef.current === p.id) return;
+    syncedProfileRef.current = p.id;
+    const patch = {};
+    if (!data.profile.name && p.name) patch.name = p.name;
+    if (!data.profile.photo && p.photo) patch.photo = p.photo;
+    if (Object.keys(patch).length) actions.setProfile(patch);
+    const up = {};
+    if (!p.name && data.profile.name) up.name = data.profile.name;
+    if (!p.photo && data.profile.photo) up.photo = data.profile.photo;
+    if (Object.keys(up).length) cloud.api.syncProfile(up);
+  }, [cloud.social.profile, data]);
+
   /* ----------------- datos derivados ----------------- */
-  const activeList = data ? data.lists.find((l) => l.id === data.activeListId) || data.lists[0] : null;
-  const catMap = useMemo(() => (data ? new Map(data.categories.map((c) => [c.id, c])) : new Map()), [data && data.categories]);
-  const listMap = useMemo(() => (data ? new Map(data.lists.map((l) => [l.id, l])) : new Map()), [data && data.lists]);
+  const activeList = viewData ? viewData.lists.find((l) => l.id === viewData.activeListId) || viewData.lists[0] : null;
+  const catMap = useMemo(() => (viewData ? new Map(viewData.categories.map((c) => [c.id, c])) : new Map()), [viewData && viewData.categories]);
+  const listMap = useMemo(() => (viewData ? new Map(viewData.lists.map((l) => [l.id, l])) : new Map()), [viewData && viewData.lists]);
 
   const listTxs = useMemo(() => {
-    if (!data || !activeList) return [];
-    return data.transactions
+    if (!viewData || !activeList) return [];
+    return viewData.transactions
       .filter((t) => t.listId === activeList.id)
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
-  }, [data && data.transactions, activeList && activeList.id]);
+  }, [viewData && viewData.transactions, activeList && activeList.id]);
 
   const periodTxs = useMemo(() => {
     if (period.mode === "all") return listTxs;
@@ -1668,10 +2220,19 @@ export default function App() {
         {/* ---------- encabezado ---------- */}
         <header className="hdr">
           <button className="chip" onClick={() => { haptic(); setListOpen(true); }} aria-label="Cambiar de lista">
-            {activeList.name} <Icon name="chevD" size={14} color="var(--txt2)" />
+            {activeList.shared ? "👥 " : ""}{activeList.name} <Icon name="chevD" size={14} color="var(--txt2)" />
           </button>
           <div className="hdr-right">
             <button className="icon-btn" onClick={() => { haptic(); setSearchOpen(true); }} aria-label="Buscar"><Icon name="search" size={17} /></button>
+            {cloud.uid && (() => {
+              const unread = cloud.social.notifications.filter((n) => !n.read).length;
+              return (
+                <button className="icon-btn bell-wrap" onClick={() => { haptic(); setNotifOpen(true); }} aria-label="Notificaciones">
+                  <Icon name="bell" size={17} />
+                  {unread > 0 && <span className="badge-dot">{unread > 9 ? "9+" : unread}</span>}
+                </button>
+              );
+            })()}
             <button className="icon-btn" style={{ overflow: "hidden", padding: 0 }} onClick={() => { haptic(); setProfileOpen(true); }} aria-label="Perfil">
               {data.profile.photo ? <img className="avatar-mini" src={data.profile.photo} alt="" /> : <Icon name="user" size={18} />}
             </button>
@@ -1747,18 +2308,23 @@ export default function App() {
 
       {/* ---------- hojas ---------- */}
       <TxFormSheet
-        open={addOpen} onClose={() => setAddOpen(false)} data={data} defaultListId={data.activeListId}
-        onCreateCategory={(lid, p) => actions.createCategory(lid, p)}
-        onSubmit={(p) => { actions.addTransaction(p); showToast(p.type === "income" ? "💚" : "✅", p.frequency !== "none" ? "Recurrencia creada" : "Movimiento agregado"); }}
+        open={addOpen} onClose={() => setAddOpen(false)} data={viewData} defaultListId={viewData.activeListId} sharedListIds={sharedListIds}
+        onCreateCategory={(lid, p) => routedActions.createCategory(lid, p)}
+        onSubmit={(p) => { routedActions.addTransaction(p); showToast(p.type === "income" ? "💚" : "✅", p.frequency !== "none" ? "Recurrencia creada" : "Movimiento agregado"); }}
       />
       <TxFormSheet
-        open={!!editTx} onClose={() => setEditTx(null)} data={data} defaultListId={data.activeListId} initial={editTx}
-        onCreateCategory={(lid, p) => actions.createCategory(lid, p)}
-        onSubmit={(p) => { actions.editTransaction(editTx.id, p); showToast("✏️", "Movimiento actualizado"); }}
+        open={!!editTx} onClose={() => setEditTx(null)} data={viewData} defaultListId={viewData.activeListId} initial={editTx} sharedListIds={sharedListIds}
+        onCreateCategory={(lid, p) => routedActions.createCategory(lid, p)}
+        onSubmit={(p) => { routedActions.editTransaction(editTx.id, p); showToast("✏️", "Movimiento actualizado"); }}
       />
       <PeriodSheet open={periodOpen} onClose={() => setPeriodOpen(false)} period={period} setPeriod={setPeriod} txs={listTxs} />
-      <ListSheet open={listOpen} onClose={() => setListOpen(false)} data={data}
-        onSelect={(id) => actions.setActiveList(id)} onCreate={(name) => { actions.createList(name); showToast("✨", "Lista creada"); }} />
+      <ListSheet open={listOpen} onClose={() => setListOpen(false)} data={viewData} canShare={!!cloud.uid}
+        onSelect={(id) => actions.setActiveList(id)}
+        onCreate={async (name, shared) => {
+          if (shared) { const id = await cloud.api.createSharedList(name); if (id) actions.setActiveList(id); }
+          else { actions.createList(name); showToast("✨", "Lista creada"); }
+        }} />
+      <NotificationsSheet open={notifOpen} onClose={() => setNotifOpen(false)} cloud={cloud} />
 
       {/* hoja de acciones del movimiento */}
       <Sheet open={!!actionTx} onClose={() => setActionTx(null)} title={null}>
@@ -1790,18 +2356,18 @@ export default function App() {
 
       <ConfirmSheet open={!!confirmDel} onClose={() => setConfirmDel(null)} title="¿Eliminar movimiento?"
         message="Esta acción no se puede deshacer."
-        onConfirm={() => { actions.deleteTransaction(confirmDel.id); showToast("🗑️", "Movimiento eliminado"); }} />
+        onConfirm={() => { routedActions.deleteTransaction(confirmDel.id); showToast("🗑️", "Movimiento eliminado"); }} />
 
       {/* buscador y perfil */}
       <Overlay open={searchOpen} onClose={() => setSearchOpen(false)}>
         {({ requestClose }) => (
-          <SearchScreen requestClose={requestClose} data={data}
+          <SearchScreen requestClose={requestClose} data={viewData}
             onPressTx={(t) => { haptic(); setSearchOpen(false); setTimeout(() => setActionTx(t), 260); }} />
         )}
       </Overlay>
       <Overlay open={profileOpen} onClose={() => setProfileOpen(false)}>
         {({ requestClose }) => (
-          <ProfileScreen requestClose={requestClose} data={data} actions={actions} showToast={showToast} />
+          <ProfileScreen requestClose={requestClose} data={viewData} actions={routedActions} showToast={showToast} cloud={cloud} sharedListIds={sharedListIds} />
         )}
       </Overlay>
 
