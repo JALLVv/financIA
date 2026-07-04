@@ -396,12 +396,16 @@ const parseD = (s) => { const [y, m, d] = s.split("-").map(Number); return new D
 const fmtDate = (s) => { const [y, m, d] = s.split("-"); return `${d}/${m}/${y}`; };
 
 const money2 = new Intl.NumberFormat("es-EC", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money1 = new Intl.NumberFormat("es-EC", { style: "currency", currency: "USD", minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const money0 = new Intl.NumberFormat("es-EC", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 });
-/* sin ",00" cuando el valor no tiene centavos */
+/* sin ceros de sobra: $21 en vez de $21,00 y $21,8 en vez de $21,80 */
 const fmt = (n) => {
   let v = Math.round(n * 100) / 100;
   if (Math.abs(v) < 0.005) v = 0;
-  return Number.isInteger(v) ? money0.format(v) : money2.format(v);
+  const cents = Math.round(Math.abs(v) * 100);
+  if (cents % 100 === 0) return money0.format(v);
+  if (cents % 10 === 0) return money1.format(v);
+  return money2.format(v);
 };
 const fmtShort = (n) => {
   const a = Math.abs(n);
