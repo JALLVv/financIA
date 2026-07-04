@@ -22,15 +22,27 @@ webpush.setVapidDetails(
 
 type Payload = Record<string, any>;
 
+const money = (n: number) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
+
 const messageFor = (kind: string, p: Payload) => {
   const name = (obj: Payload | undefined) => (obj && obj.name) || "Alguien";
   switch (kind) {
-    case "movement":
-      return { title: "Finanzas", body: `${name(p.author)} agregó un movimiento` };
+    case "movement": {
+      const tipo = p.type === "income" ? "ingreso" : "gasto";
+      const detalle = [p.description, `${p.type === "income" ? "+" : "−"}${money(Number(p.amount || 0))}`]
+        .filter(Boolean).join(" · ");
+      return {
+        title: `${name(p.author)} agregó un ${tipo} a ${p.list_name || "una lista compartida"}`,
+        body: detalle,
+      };
+    }
     case "friend_request":
-      return { title: "Finanzas", body: `${name(p.from)} quiere añadirte como amigo` };
+      return { title: `${name(p.from)} quiere añadirte como amigo`, body: "Abre la app para aceptar o rechazar" };
     case "list_invite":
-      return { title: "Finanzas", body: `${name(p.from)} quiere añadirte a una lista compartida` };
+      return {
+        title: `${name(p.from)} quiere añadirte a una lista compartida`,
+        body: p.list_name ? `Lista: ${p.list_name}` : "Abre la app para aceptar o rechazar",
+      };
     default:
       return null;
   }

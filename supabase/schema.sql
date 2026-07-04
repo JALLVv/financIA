@@ -98,6 +98,7 @@ create table if not exists public.shared_transactions (
   amount numeric not null check (amount > 0),
   description text not null default '',
   date date not null,
+  photo text,
   created_at timestamptz not null default now()
 );
 create table if not exists public.list_invites (

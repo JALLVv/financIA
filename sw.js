@@ -49,10 +49,12 @@ self.addEventListener("fetch", (e) => {
 
 /* ---------- notificaciones push ---------- */
 self.addEventListener("push", (e) => {
-  let msg = { title: "Finanzas", body: "Tienes una notificación nueva" };
-  try { Object.assign(msg, e.data.json()); } catch (err) {}
-  e.waitUntil(self.registration.showNotification(msg.title, {
-    body: msg.body,
+  let msg = {};
+  try { msg = e.data.json() || {}; } catch (err) {}
+  /* el mensaje principal va como título (sin encabezado "Finanzas") */
+  const title = msg.title || msg.body || "Tienes una notificación nueva";
+  e.waitUntil(self.registration.showNotification(title, {
+    body: msg.title ? (msg.body || "") : "",
     icon: "./icons/icon-192.png",
     badge: "./icons/icon-192.png",
     data: { url: "./" },
