@@ -113,8 +113,11 @@ input::placeholder{color:var(--txt3);}
   position:relative; width:100%; border-radius:16px; background:var(--card3);
   border:1px solid var(--line); overflow:hidden;
   display:flex; flex-direction:column; justify-content:flex-end; align-items:center; padding-bottom:8px;
-  transition:height .6s var(--ease-ios), background .25s, transform .25s var(--spring), border-color .25s;
+  transition:height .7s cubic-bezier(.22,1,.36,1), background .25s, transform .25s var(--spring), border-color .25s;
+  will-change:height;
 }
+.bar .b-emoji,.bar .b-amt{transition:opacity .4s ease .3s;}
+.bar.pre .b-emoji,.bar.pre .b-amt{opacity:0; transition:none;}
 .bar:active{transform:scale(.96);}
 .bar.sel{background:#3A3A40; border-color:var(--line2); box-shadow:0 6px 18px rgba(0,0,0,.4);}
 .bar .b-emoji{font-size:24px; line-height:1;}
@@ -820,11 +823,11 @@ const BarChart = memo(function BarChart({ groups, type, onSelect, selectedId, an
   return (
     <div className="chart-scroll" key={animKey}>
       {groups.map((g, i) => {
-        const h = ready ? MIN + (g.total / max) * (H - MIN) : MIN;
+        const h = ready ? MIN + (g.total / max) * (H - MIN) : 0;
         return (
           <div className="bar-col" key={g.cat.id}>
             <button
-              className={`bar ${selectedId === g.cat.id ? "sel" : ""}`}
+              className={`bar ${ready ? "" : "pre"} ${selectedId === g.cat.id ? "sel" : ""}`}
               style={{ height: h, transitionDelay: `${Math.min(i, 8) * 35}ms` }}
               onClick={() => { haptic(); onSelect(selectedId === g.cat.id ? null : g.cat.id); }}
               aria-label={`${g.cat.name}: ${fmt(g.total)}`}
