@@ -67,7 +67,7 @@ input::placeholder{color:var(--txt3);}
 .balance-wrap{text-align:center; padding:26px 0 8px; animation:rise .5s var(--ease-ios) both;}
 .balance-label{font-size:14px; font-weight:600; color:var(--txt2); letter-spacing:.06em; text-transform:uppercase;}
 .balance-row{display:flex; align-items:center; justify-content:center; gap:12px; margin-top:8px;}
-.balance-num{font-size:clamp(50px,14vw,68px); font-weight:900; letter-spacing:-.02em; line-height:1.05; display:inline-block;}
+.balance-num{font-size:clamp(50px,14vw,68px); font-weight:900; letter-spacing:-.045em; line-height:1.05; display:inline-block;}
 .sign-dot{
   width:30px;height:30px;border-radius:50%;display:grid;place-items:center;flex:none;
   color:#fff; transition:background .4s, box-shadow .4s, transform .4s var(--spring);
@@ -91,7 +91,7 @@ input::placeholder{color:var(--txt3);}
   transition:transform .35s var(--ease-ios), width .35s var(--ease-ios);}
 .seg-btn{flex:1; position:relative; z-index:1; padding:11px 0; text-align:center; font-weight:600; font-size:14px; color:var(--txt2); border-radius:13px; transition:color .25s;}
 .seg-btn.on{color:var(--txt);}
-.seg-sub{display:block; font-size:15.5px; font-weight:700; margin-top:0; font-feature-settings:"tnum" 1;}
+.seg-sub{display:block; font-size:15.5px; font-weight:700; margin-top:0; font-feature-settings:"tnum" 1; letter-spacing:-.03em;}
 .seg-sub.exp{color:var(--red);} .seg-sub.inc{color:var(--green);}
 
 /* ---------- period pill ---------- */
@@ -121,7 +121,7 @@ input::placeholder{color:var(--txt3);}
 .bar:active{transform:scale(.96);}
 .bar.sel{background:#3A3A40; border-color:var(--line2); box-shadow:0 6px 18px rgba(0,0,0,.4);}
 .bar .b-emoji{font-size:24px; line-height:1;}
-.bar .b-amt{font-size:11.5px; font-weight:700; color:var(--txt2); margin-top:3px; white-space:nowrap;}
+.bar .b-amt{font-size:11.5px; font-weight:700; color:var(--txt2); margin-top:3px; white-space:nowrap; letter-spacing:-.03em;}
 .bar-detail{
   margin-top:12px; background:var(--card); border:1px solid var(--line); border-radius:20px; padding:14px 16px;
   display:flex; align-items:center; gap:12px; animation:popIn .35s var(--spring) both;
@@ -130,7 +130,7 @@ input::placeholder{color:var(--txt3);}
 .bd-meta{flex:1; min-width:0;}
 .bd-name{font-weight:700; font-size:15px;}
 .bd-sub{font-size:12.5px; color:var(--txt2); margin-top:2px;}
-.bd-amt{font-weight:800; font-size:17px; font-feature-settings:"tnum" 1;}
+.bd-amt{font-weight:800; font-size:17px; font-feature-settings:"tnum" 1; letter-spacing:-.03em;}
 
 /* ---------- emoji bubble ---------- */
 .ebubble{border-radius:50%; display:grid; place-items:center; flex:none;}
@@ -148,7 +148,7 @@ input::placeholder{color:var(--txt3);}
 .tx-mid{flex:1; min-width:0;}
 .tx-cat{font-size:13px; color:var(--txt2); font-weight:500;}
 .tx-desc{font-size:15px; font-weight:700; margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.tx-amt{font-weight:700; font-size:15px; font-feature-settings:"tnum" 1; white-space:nowrap;}
+.tx-amt{font-weight:700; font-size:15px; font-feature-settings:"tnum" 1; white-space:nowrap; letter-spacing:-.03em;}
 .tx-amt.inc{color:var(--green);} .tx-amt.exp{color:var(--txt);}
 .tx-badge{font-size:10px; font-weight:700; color:var(--txt3); text-align:right; margin-top:2px;}
 .content-swap{animation:swap .4s var(--ease-ios) both;}
@@ -210,10 +210,10 @@ input::placeholder{color:var(--txt3);}
 .f-input{flex:1; background:none; border:none; outline:none; font-size:15px; text-align:right; min-width:0;}
 .f-input.left{text-align:left;}
 .amount-wrap{display:flex; align-items:baseline; justify-content:center; gap:3px; padding:8px 0 2px;}
-.amount-cur{font-size:32px; font-weight:800; color:var(--txt3); letter-spacing:-.02em;}
+.amount-cur{font-size:32px; font-weight:800; color:var(--txt3); letter-spacing:-.04em;}
 .amount-input{
   background:none; border:none; outline:none; text-align:left;
-  font-size:44px; font-weight:800; letter-spacing:-.02em; padding:0; caret-color:var(--accent);
+  font-size:44px; font-weight:800; letter-spacing:-.04em; padding:0; caret-color:var(--accent);
   min-width:1.1ch; max-width:72%;
 }
 .type-toggle{display:flex; gap:8px; margin:4px 0 16px;}
@@ -255,7 +255,7 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 .month-cell.on{border-color:var(--accent); background:var(--accent-soft);}
 .month-cell.dim{opacity:.45;}
 .m-name{font-weight:700; font-size:14px;}
-.m-bal{font-size:11.5px; font-weight:700; margin-top:3px; font-feature-settings:"tnum" 1;}
+.m-bal{font-size:11.5px; font-weight:700; margin-top:3px; font-feature-settings:"tnum" 1; letter-spacing:-.03em;}
 .m-bal.pos{color:var(--green);} .m-bal.neg{color:var(--red);} .m-bal.zero{color:var(--txt3);}
 .year-stepper{display:flex; align-items:center; justify-content:center; gap:18px; margin:6px 0 14px;}
 .year-stepper .yr{font-size:19px; font-weight:800; min-width:74px; text-align:center;}
@@ -665,10 +665,10 @@ function AnimatedNumber({ value, format = fmt, className = "", style }) {
     if (from === value) return;
     prev.current = value;
     setPulse(true);
-    const t0 = performance.now(), dur = 750;
+    const t0 = performance.now(), dur = 1000;
     const tick = (t) => {
       const p = Math.min(1, (t - t0) / dur);
-      const e = 1 - Math.pow(1 - p, 3);
+      const e = 1 - Math.pow(1 - p, 4);
       setDisp(from + (value - from) * e);
       if (p < 1) raf.current = requestAnimationFrame(tick);
       else { setDisp(value); setTimeout(() => setPulse(false), 60); }
