@@ -428,6 +428,24 @@ const freqLabel = (id) => (FREQS.find((f) => f.id === id) || {}).label || id;
 
 const haptic = (ms = 8) => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} };
 
+/* lee una imagen del usuario y la reduce (para adjuntar facturas sin llenar el almacenamiento) */
+function readImageScaled(file, maxSide, quality, cb) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const r = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.width * r));
+      c.height = Math.max(1, Math.round(img.height * r));
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      cb(c.toDataURL("image/jpeg", quality));
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function timeAgo(iso) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
   if (s < 60) return "ahora";
@@ -671,10 +689,12 @@ function Segmented({ options, value, onChange, renderExtra, className }) {
   );
 }
 
-/* Hoja modal estilo iOS con animación de cierre */
+/* Hoja modal estilo iOS con animación de cierre.
+   Se eleva con el teclado (visualViewport) para que los campos no queden tapados. */
 function Sheet({ open, onClose, title, children, footer }) {
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
+  const [kb, setKb] = useState(0);
   useEffect(() => {
     if (open) { setMounted(true); setClosing(false); }
     else if (mounted) {
@@ -683,11 +703,21 @@ function Sheet({ open, onClose, title, children, footer }) {
       return () => clearTimeout(t);
     }
   }, [open]);
+  useEffect(() => {
+    if (!mounted || typeof window === "undefined" || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const onResize = () => setKb(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+    vv.addEventListener("resize", onResize);
+    vv.addEventListener("scroll", onResize);
+    onResize();
+    return () => { vv.removeEventListener("resize", onResize); vv.removeEventListener("scroll", onResize); setKb(0); };
+  }, [mounted]);
   if (!mounted) return null;
   return (
     <>
       <div className={`sheet-backdrop ${closing ? "closing" : ""}`} onClick={onClose} />
-      <div className={`sheet ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div className={`sheet ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={title}
+        style={kb ? { bottom: kb, maxHeight: `calc(96dvh - ${kb}px)`, transition: "bottom .25s var(--ease-ios)" } : undefined}>
         <div className="grabber" />
         {title != null && (
           <div className="sheet-title-row">
@@ -818,6 +848,7 @@ const TxRow = memo(function TxRow({ tx, cat, onPress, showList, listName }) {
       <div style={{ textAlign: "right" }}>
         <div className={`tx-amt ${inc ? "inc" : "exp"}`}>{inc ? "+" : "−"}{fmt(tx.amount)}</div>
         {tx.recurringId ? <div className="tx-badge">🔁 recurrente</div> : null}
+        {tx.photo ? <div className="tx-badge">📎 foto</div> : null}
       </div>
     </button>
   );
@@ -936,7 +967,7 @@ function CategoryFormSheet({ open, onClose, onSave, listName, initial }) {
 /* ----------------------- Nube: hook de estado social ----------------------- */
 function notifToastInfo(n) {
   const p = n.payload || {};
-  if (n.kind === "movement") return { emoji: "👥", text: `${(p.author && p.author.name) || "Alguien"} agregó un movimiento` };
+  if (n.kind === "movement") return { emoji: "👥", text: `${(p.author && p.author.name) || "Alguien"} agregó un ${p.type === "income" ? "ingreso" : "gasto"} a ${p.list_name || "una lista"}` };
   if (n.kind === "friend_request") return { emoji: "🤝", text: `${(p.from && p.from.name) || "Alguien"} quiere añadirte como amigo` };
   if (n.kind === "list_invite") return { emoji: "📨", text: `${(p.from && p.from.name) || "Alguien"} quiere añadirte a una lista compartida` };
   return null;
@@ -1168,9 +1199,9 @@ function NotifRow({ n, cloud }) {
   let from = null, title = "", sub = "", actionable = false;
   if (n.kind === "movement") {
     from = p.author;
-    title = `${(p.author && p.author.name) || "Alguien"} agregó un movimiento`;
+    title = `${(p.author && p.author.name) || "Alguien"} agregó un ${p.type === "income" ? "ingreso" : "gasto"} a ${p.list_name || "una lista"}`;
     const amt = `${p.type === "income" ? "+" : "−"}${fmt(Number(p.amount || 0))}`;
-    sub = [p.list_name, p.description, amt, timeAgo(n.created_at)].filter(Boolean).join(" · ");
+    sub = [p.description, amt, timeAgo(n.created_at)].filter(Boolean).join(" · ");
   } else if (n.kind === "friend_request") {
     from = p.from;
     title = `${(p.from && p.from.name) || "Alguien"} quiere añadirte como amigo`;
@@ -1272,7 +1303,9 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
   const [catId, setCatId] = useState(null);
   const [date, setDate] = useState(todayStr());
   const [freq, setFreq] = useState("none");
+  const [photo, setPhoto] = useState(null);
   const [catSheet, setCatSheet] = useState(false);
+  const photoRef = useRef(null);
 
   useEffect(() => {
     if (open) {
@@ -1283,8 +1316,16 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
       setCatId(initial ? initial.categoryId : null);
       setDate(initial ? initial.date : todayStr());
       setFreq(initial && initial.frequency ? initial.frequency : "none");
+      setPhoto(initial ? initial.photo || null : null);
     }
   }, [open, initial, defaultListId]);
+
+  const pickTxPhoto = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    readImageScaled(file, 1100, 0.75, (url) => { setPhoto(url); haptic(8); });
+    e.target.value = "";
+  };
 
   const cats = useMemo(() => data.categories.filter((c) => c.listId === listId), [data.categories, listId]);
   useEffect(() => {
@@ -1309,7 +1350,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
           <button className="primary-btn" style={{ marginTop: 12 }} disabled={!valid}
             onClick={() => {
               haptic(16);
-              onSubmit({ type, amount: Math.round(amt * 100) / 100, description: desc.trim(), listId, categoryId: catId, date, frequency: isSharedList ? "none" : freq });
+              onSubmit({ type, amount: Math.round(amt * 100) / 100, description: desc.trim(), listId, categoryId: catId, date, frequency: isSharedList ? "none" : freq, photo });
               onClose();
             }}>
             {editing ? "Guardar cambios" : "Agregar movimiento"}
@@ -1336,6 +1377,24 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
           <div className="f-row">
             <span className="f-label">Descripción</span>
             <input className="f-input" value={desc} placeholder="Ej. Supermercado" maxLength={60} onChange={(e) => setDesc(e.target.value)} />
+          </div>
+          <div className="f-row">
+            <span className="f-label">Foto</span>
+            {photo ? (
+              <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
+                <img src={photo} alt="Foto adjunta" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover", border: "1px solid var(--line2)" }} />
+                <button className="mini-btn del" aria-label="Quitar foto" onClick={() => { haptic(); setPhoto(null); }}>
+                  <Icon name="trash" size={14} />
+                </button>
+              </div>
+            ) : (
+              <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
+                <button className="chip" style={{ padding: "7px 14px", gap: 7 }} onClick={() => { haptic(); photoRef.current && photoRef.current.click(); }}>
+                  <Icon name="camera" size={15} /> Adjuntar
+                </button>
+              </div>
+            )}
+            <input ref={photoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={pickTxPhoto} />
           </div>
         </div>
 
@@ -1996,6 +2055,7 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [photoView, setPhotoView] = useState(null); // foto de movimiento a pantalla completa
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
 
@@ -2075,13 +2135,13 @@ export default function App() {
         };
         return runRecurring({ ...d, recurring: [...d.recurring, rule] });
       }
-      const tx = { id: uid(), listId: p.listId, categoryId: p.categoryId, type: p.type, amount: p.amount, description: p.description, date: p.date };
+      const tx = { id: uid(), listId: p.listId, categoryId: p.categoryId, type: p.type, amount: p.amount, description: p.description, date: p.date, photo: p.photo || null };
       return { ...d, transactions: [...d.transactions, tx] };
     }),
     editTransaction: (id, p) => update((d) => ({
       ...d,
       transactions: d.transactions.map((t) => (t.id === id
-        ? { ...t, type: p.type, amount: p.amount, description: p.description, listId: p.listId, categoryId: p.categoryId, date: p.date }
+        ? { ...t, type: p.type, amount: p.amount, description: p.description, listId: p.listId, categoryId: p.categoryId, date: p.date, photo: p.photo || null }
         : t)),
     })),
     deleteTransaction: (id) => update((d) => ({ ...d, transactions: d.transactions.filter((t) => t.id !== id) })),
@@ -2342,6 +2402,13 @@ export default function App() {
                   {actionTx.type === "income" ? "+" : "−"}{fmt(actionTx.amount)}
                 </div>
               </div>
+              {actionTx.photo && (
+                <button style={{ width: "100%", marginBottom: 14 }} aria-label="Ver foto adjunta"
+                  onClick={() => { haptic(); setPhotoView(actionTx.photo); }}>
+                  <img src={actionTx.photo} alt="Foto adjunta"
+                    style={{ width: "100%", maxHeight: 240, objectFit: "cover", borderRadius: 16, border: "1px solid var(--line2)", display: "block" }} />
+                </button>
+              )}
               <div className="action-stack">
                 <div className="action-card">
                   <button className="action-btn" onClick={() => { haptic(); const t = actionTx; setActionTx(null); setTimeout(() => setEditTx(t), 220); }}>Editar</button>
@@ -2370,6 +2437,16 @@ export default function App() {
           <ProfileScreen requestClose={requestClose} data={viewData} actions={routedActions} showToast={showToast} cloud={cloud} sharedListIds={sharedListIds} />
         )}
       </Overlay>
+
+      {/* visor de foto a pantalla completa */}
+      {photoView && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 95, background: "rgba(0,0,0,.94)", display: "grid", placeItems: "center", padding: 16 }}
+          onClick={() => setPhotoView(null)} role="dialog" aria-label="Foto adjunta">
+          <img src={photoView} alt="Foto adjunta" style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 12 }} />
+          <button className="sheet-close" style={{ position: "absolute", top: "calc(16px + env(safe-area-inset-top))", right: 16 }}
+            onClick={() => setPhotoView(null)} aria-label="Cerrar"><Icon name="x" size={15} /></button>
+        </div>
+      )}
 
       <Toast msg={toast} />
     </div>
