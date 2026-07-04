@@ -10,7 +10,7 @@
       aquí la clave pública VAPID
    ============================================================ */
 window.FINANZAS_CONFIG = {
-  supabaseUrl: "",     // p. ej. "https://abcdefgh.supabase.co"
-  supabaseAnonKey: "", // la clave "anon public" del proyecto
+  supabaseUrl: "https://tpizpezfyzpzewjfanom.supabase.co",     // p. ej. "https://abcdefgh.supabase.co"
+  supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwaXpwZXpmeXpwemV3amZhbm9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNjg4MDcsImV4cCI6MjA5ODc0NDgwN30.KL4hOuQDPEiYSj9uUCOFf9gfWRpO86NWhKFgyBjtG1I", // la clave "anon public" del proyecto
   vapidPublicKey: "",  // clave pública VAPID para notificaciones push
 };
