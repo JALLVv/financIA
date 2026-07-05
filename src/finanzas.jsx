@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
-import { cloudEnabled, supabase, fetchSocial, cloudApi, enablePush, EMPTY_SOCIAL } from "./cloud.js";
+import { cloudEnabled, supabase, fetchSocial, cloudApi, enablePush, disablePush, refreshPush, hasPushSubscription, EMPTY_SOCIAL } from "./cloud.js";
 
 /* ============================================================
    Finanzas — app de finanzas personales estilo iOS
@@ -22,16 +22,10 @@ const CSS = `
 }
 .fin-app,.fin-app *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 .fin-app{
-  font-family:ui-rounded,"SF Pro Rounded",-apple-system,"SF Pro Text",system-ui,"Segoe UI",sans-serif;
+  font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;
   background:var(--bg); color:var(--txt); min-height:100dvh; width:100%;
   -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
   font-feature-settings:"tnum" 1; overflow-x:hidden; position:relative;
-}
-.fin-app::before{
-  content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
-  background:
-    radial-gradient(120% 60% at 50% -10%, rgba(245,73,39,.09), transparent 60%),
-    radial-gradient(80% 50% at 90% 110%, rgba(120,90,255,.05), transparent 60%);
 }
 .fin-scroll{position:relative; z-index:1; padding:0 20px calc(120px + env(safe-area-inset-bottom)); max-width:520px; margin:0 auto;}
 button{font:inherit; color:inherit; border:none; background:none; padding:0; cursor:pointer;}
@@ -73,8 +67,8 @@ input::placeholder{color:var(--txt3);}
   color:#fff; transition:background .4s, box-shadow .4s, transform .4s var(--spring);
 }
 .sign-dot svg{display:block;}
-.sign-pos{background:var(--green); box-shadow:0 0 18px rgba(50,215,75,.45);}
-.sign-neg{background:var(--red); box-shadow:0 0 18px rgba(255,69,58,.45);}
+.sign-pos{background:var(--green);}
+.sign-neg{background:var(--red);}
 .sign-zero{background:var(--card3); box-shadow:none;}
 .num-pulse{animation:numPulse .7s var(--spring);}
 @keyframes numPulse{0%{transform:scale(1)}35%{transform:scale(1.05)}100%{transform:scale(1)}}
@@ -168,12 +162,11 @@ input::placeholder{color:var(--txt3);}
   position:fixed; right:calc(20px + env(safe-area-inset-right));
   bottom:calc(24px + env(safe-area-inset-bottom)); z-index:45;
   width:62px; height:62px; border-radius:50%;
-  background:linear-gradient(160deg,#FF6B47,var(--accent) 60%);
-  box-shadow:0 10px 30px rgba(245,73,39,.45), inset 0 1px 0 rgba(255,255,255,.35);
+  background:var(--accent);
+  box-shadow:0 8px 22px rgba(0,0,0,.4);
   display:grid; place-items:center; transition:transform .3s var(--spring), box-shadow .3s;
 }
-.fab:active{transform:scale(.88); box-shadow:0 6px 18px rgba(245,73,39,.35);}
-.fab svg{filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));}
+.fab:active{transform:scale(.88); box-shadow:0 4px 12px rgba(0,0,0,.3);}
 
 /* ---------- sheets ---------- */
 .sheet-backdrop{
@@ -233,10 +226,10 @@ input::placeholder{color:var(--txt3);}
 .cat-pick.on .c-name{color:var(--txt);}
 .primary-btn{
   width:100%; padding:15px 0; border-radius:18px; background:var(--accent); color:#fff; font-weight:800; font-size:16px;
-  box-shadow:0 8px 24px rgba(245,73,39,.35); transition:transform .25s var(--spring), opacity .2s, box-shadow .25s; flex:none;
+  transition:transform .25s var(--spring), opacity .2s; flex:none;
 }
 .primary-btn:active{transform:scale(.97);}
-.primary-btn:disabled{opacity:.35; box-shadow:none;}
+.primary-btn:disabled{opacity:.35;}
 .danger-btn{width:100%; padding:14px 0; border-radius:18px; background:rgba(255,69,58,.13); color:var(--red); font-weight:700; font-size:15.5px; transition:transform .25s var(--spring);}
 .danger-btn:active{transform:scale(.97);}
 .ghost-btn{width:100%; padding:14px 0; border-radius:18px; background:var(--card2); color:var(--txt); font-weight:700; font-size:15.5px; transition:transform .25s var(--spring);}
@@ -340,11 +333,6 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 .action-btn:active{background:var(--card3);}
 .action-btn.destructive{color:var(--red);}
 
-/* ---------- swatches ---------- */
-.swatches{display:flex; flex-wrap:wrap; gap:11px; padding:4px 2px; justify-content:center;}
-.swatch{width:34px; height:34px; border-radius:50%; transition:transform .25s var(--spring), box-shadow .25s;}
-.swatch:active{transform:scale(.88);}
-.swatch.on{box-shadow:0 0 0 3px var(--bg), 0 0 0 5.5px var(--txt); transform:scale(1.08);}
 .emoji-big-input{
   width:92px; height:92px; margin:0 auto; display:block; text-align:center; font-size:52px; line-height:92px; padding:0; background:var(--card2);
   border:1px solid var(--line2); border-radius:28px; outline:none; caret-color:var(--accent); transition:border-color .2s;
@@ -364,7 +352,7 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 @keyframes sp{to{transform:rotate(360deg)}}
 
 /* ---------- social ---------- */
-.avatar-sm{border-radius:50%; background:linear-gradient(150deg,#3A3A40,#26262B); display:grid; place-items:center; font-weight:800; color:var(--txt2); overflow:hidden; flex:none;}
+.avatar-sm{border-radius:50%; background:#2E2E33; display:grid; place-items:center; font-weight:800; color:var(--txt2); overflow:hidden; flex:none;}
 .avatar-sm img{width:100%; height:100%; object-fit:cover;}
 .bell-wrap{position:relative;}
 .badge-dot{
@@ -383,6 +371,24 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 .btn-reject{padding:8px 18px; border-radius:14px; background:var(--card3); color:var(--txt); font-weight:700; font-size:13.5px; transition:transform .2s var(--spring);}
 .btn-reject:active{transform:scale(.95);}
 .cloud-hint{font-size:12.5px; color:var(--txt2); line-height:1.55; padding:14px 16px; font-weight:600;}
+.account-card{
+  margin:16px auto 0; display:flex; align-items:center; gap:12px; text-align:left;
+  background:var(--card); border:1px solid var(--line); border-radius:18px; padding:10px 14px; max-width:340px;
+}
+
+/* ---------- interruptor estilo iPhone ---------- */
+.switch{width:51px; height:31px; border-radius:16px; background:var(--card3); position:relative; transition:background .25s; flex:none;}
+.switch.on{background:var(--green);}
+.switch::after{
+  content:""; position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:50%;
+  background:#fff; transition:transform .25s var(--ease-ios); box-shadow:0 2px 5px rgba(0,0,0,.3);
+}
+.switch.on::after{transform:translateX(20px);}
+
+/* ---------- fila deslizable (borrar estilo iPhone) ---------- */
+.swipe-wrap{position:relative; overflow:hidden;}
+.swipe-del{position:absolute; top:0; right:0; bottom:0; background:var(--red); color:#fff; display:grid; place-items:center;}
+.swipe-content{position:relative; background:var(--card); touch-action:pan-y;}
 
 @media (prefers-reduced-motion: reduce){
   .fin-app *, .fin-app *::before, .fin-app *::after{animation-duration:.01ms !important; transition-duration:.01ms !important;}
@@ -757,11 +763,7 @@ function Overlay({ open, onClose, children }) {
 
 const EmojiBubble = memo(function EmojiBubble({ emoji, color, size = 44, fontSize }) {
   return (
-    <div className="ebubble" style={{
-      width: size, height: size, fontSize: fontSize || size * 0.52,
-      background: `linear-gradient(150deg, ${color}, ${color}CC)`,
-      boxShadow: `0 4px 14px ${color}55, inset 0 1px 0 rgba(255,255,255,.28)`,
-    }}>
+    <div className="ebubble" style={{ width: size, height: size, fontSize: fontSize || size * 0.52, background: color }}>
       <span style={{ transform: "translateY(1px)" }}>{emoji}</span>
     </div>
   );
@@ -791,6 +793,53 @@ function EmptyState({ emoji, title, sub }) {
 function Toast({ msg }) {
   if (!msg) return null;
   return <div className="toast" key={msg.id}><span>{msg.emoji}</span>{msg.text}</div>;
+}
+
+/* Interruptor estilo iPhone */
+function Switch({ on, onToggle, label }) {
+  return (
+    <button className={`switch ${on ? "on" : ""}`} role="switch" aria-checked={on} aria-label={label}
+      onClick={() => { haptic(10); onToggle(); }} />
+  );
+}
+
+/* Fila deslizable a la izquierda para eliminar (mecánica iPhone) */
+function SwipeRow({ children, onDelete, deleteLabel = "Eliminar" }) {
+  const W = 76;
+  const [dx, setDx] = useState(0);
+  const drag = useRef(null);
+  const start = (e) => { drag.current = { x0: e.clientX, y0: e.clientY, base: dx, horiz: null, id: e.pointerId }; };
+  const move = (e) => {
+    const d = drag.current;
+    if (!d) return;
+    const ddx = e.clientX - d.x0, ddy = e.clientY - d.y0;
+    if (d.horiz === null) {
+      if (Math.abs(ddx) < 6 && Math.abs(ddy) < 6) return;
+      d.horiz = Math.abs(ddx) > Math.abs(ddy);
+      if (d.horiz) { try { e.currentTarget.setPointerCapture(d.id); } catch (err) {} }
+    }
+    if (!d.horiz) return;
+    setDx(Math.min(0, Math.max(-W - 26, d.base + ddx)));
+  };
+  const end = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || d.horiz === null) return;
+    setDx((v) => (v < -W / 2 ? -W : 0));
+  };
+  return (
+    <div className="swipe-wrap">
+      <button className="swipe-del" style={{ width: W }} aria-label={deleteLabel}
+        onClick={() => { haptic(16); setDx(0); onDelete(); }}>
+        <Icon name="trash" size={18} />
+      </button>
+      <div className="swipe-content"
+        style={{ transform: `translateX(${dx}px)`, transition: drag.current ? "none" : "transform .28s var(--ease-ios)" }}
+        onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 /* Hoja de confirmación estilo iOS */
@@ -905,29 +954,25 @@ function GroupedTxList({ txs, catMap, onPress, listMap, showList, animKey }) {
 }
 
 /* ----------------------- Formulario de categoría ----------------------- */
-const SWATCHES = ["#FF9F0A","#FFD60A","#32D74B","#30B0C7","#0A84FF","#64D2FF","#BF5AF2","#FF6482","#FF453A","#F54927","#AC8E68","#98989F"];
-
+/* El color siempre se genera automáticamente a partir del emoji. */
 function CategoryFormSheet({ open, onClose, onSave, listName, initial }) {
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState("");
-  const [color, setColor] = useState(null); // null = automático
   useEffect(() => {
     if (open) {
       setName(initial ? initial.name : "");
       setEmoji(initial ? initial.emoji : "");
-      setColor(initial ? initial.color : null);
     }
   }, [open, initial]);
 
   const autoColor = useMemo(() => (emoji ? colorFromEmoji(emoji) : "#3A3A40"), [emoji]);
-  const finalColor = color || autoColor;
   const valid = name.trim().length > 0 && emoji.length > 0;
 
   return (
     <Sheet open={open} onClose={onClose} title={initial ? "Editar categoría" : "Nueva categoría"}
       footer={
         <button className="primary-btn" style={{ marginTop: 12 }} disabled={!valid}
-          onClick={() => { haptic(14); onSave({ name: name.trim(), emoji, color: finalColor }); onClose(); }}>
+          onClick={() => { haptic(14); onSave({ name: name.trim(), emoji, color: autoColor }); onClose(); }}>
           {initial ? "Guardar cambios" : "Crear categoría"}
         </button>
       }>
@@ -939,7 +984,7 @@ function CategoryFormSheet({ open, onClose, onSave, listName, initial }) {
           aria-label="Emoji de la categoría"
           placeholder="+"
           onChange={(e) => { const g = firstGrapheme(e.target.value); setEmoji(g); if (g) haptic(4); }}
-          style={{ boxShadow: emoji ? `0 8px 26px ${finalColor}44` : "none", background: emoji ? `linear-gradient(150deg, ${finalColor}, ${finalColor}B0)` : "var(--card2)" }}
+          style={{ background: emoji ? autoColor : "var(--card2)" }}
         />
         <div style={{ fontSize: 12.5, color: "var(--txt2)", marginTop: 10, fontWeight: 600 }}>
           Toca y elige un emoji con tu teclado · Lista: {listName}
@@ -951,21 +996,8 @@ function CategoryFormSheet({ open, onClose, onSave, listName, initial }) {
           <input className="f-input" value={name} placeholder="Ej. Restaurantes" maxLength={28} onChange={(e) => setName(e.target.value)} />
         </div>
       </div>
-      <div className="section-title" style={{ marginTop: 4 }}>Color</div>
-      <div className="swatches">
-        <button
-          className={`swatch ${color === null ? "on" : ""}`}
-          aria-label="Color automático según el emoji"
-          onClick={() => { haptic(); setColor(null); }}
-          style={{ background: `conic-gradient(${autoColor}, #FF9F0A, #32D74B, #0A84FF, #BF5AF2, ${autoColor})`, display: "grid", placeItems: "center", color: "#fff" }}
-        >✦</button>
-        {SWATCHES.map((c) => (
-          <button key={c} className={`swatch ${color === c ? "on" : ""}`} style={{ background: c }}
-            aria-label={`Color ${c}`} onClick={() => { haptic(); setColor(c); }} />
-        ))}
-      </div>
-      <div style={{ fontSize: 12, color: "var(--txt3)", margin: "10px 2px 4px", fontWeight: 600 }}>
-        ✦ genera el color automáticamente a partir del emoji.
+      <div style={{ fontSize: 12, color: "var(--txt3)", margin: "2px 2px 4px", fontWeight: 600 }}>
+        El color se genera automáticamente a partir del emoji.
       </div>
     </Sheet>
   );
@@ -1025,11 +1057,9 @@ function useCloud(showToast) {
     return () => { supabase.removeChannel(ch); document.removeEventListener("visibilitychange", onVis); };
   }, [uid, refetch, showToast]);
 
-  /* renovar la suscripción push si ya hay permiso */
+  /* re-registrar una suscripción push existente (sin crear nuevas) */
   useEffect(() => {
-    if (uid && typeof Notification !== "undefined" && Notification.permission === "granted") {
-      enablePush(uid).catch(() => {});
-    }
+    if (uid) refreshPush(uid).catch(() => {});
   }, [uid]);
 
   const api = useMemo(() => {
@@ -1143,6 +1173,10 @@ function useCloud(showToast) {
           showToast(m[0], m[1]);
           return r;
         } catch (e) { showToast("⚠️", "No se pudo activar el push"); return "error"; }
+      },
+      disablePush: async () => {
+        try { await disablePush(); showToast("🔕", "Notificaciones desactivadas"); return true; }
+        catch (e) { showToast("⚠️", "No se pudo desactivar"); return false; }
       },
     };
   }, [uid, refetch, showToast]);
@@ -1536,6 +1570,8 @@ function PeriodSheet({ open, onClose, period, setPeriod, txs }) {
 function ListSheet({ open, onClose, data, onSelect, onCreate, canShare }) {
   const [adding, setAdding] = useState(null); // null | "local" | "shared"
   const [name, setName] = useState("");
+  const privColor = useMemo(() => colorFromEmoji("🤫"), []);
+  const shareColor = useMemo(() => colorFromEmoji("👥"), []);
   useEffect(() => { if (open) { setAdding(null); setName(""); } }, [open]);
 
   const balances = useMemo(() => {
@@ -1554,7 +1590,8 @@ function ListSheet({ open, onClose, data, onSelect, onCreate, canShare }) {
           const on = l.id === data.activeListId;
           return (
             <button key={l.id} className="row-pick" onClick={() => { haptic(12); onSelect(l.id); onClose(); }}>
-              <div className="r-main">{l.name}{l.shared ? <span style={{ marginLeft: 7, fontSize: 12.5 }}>👥</span> : null}
+              <EmojiBubble emoji={l.shared ? "👥" : "🤫"} color={l.shared ? shareColor : privColor} size={40} />
+              <div className="r-main">{l.name}
                 <div className="r-sub" style={{ color: v > 0.004 ? "var(--green)" : v < -0.004 ? "var(--red)" : "var(--txt3)" }}>
                   {(v > 0.004 ? "+" : v < -0.004 ? "−" : "") + fmt(v)}
                 </div>
@@ -1732,7 +1769,7 @@ function PromptSheet({ open, onClose, title, placeholder, initial = "", confirmL
 
 /* ----------------------- Perfil ----------------------- */
 function GrayIconBubble({ emoji }) {
-  return <div className="ebubble" style={{ width: 40, height: 40, fontSize: 20, background: "linear-gradient(150deg,#3A3A40,#2A2A2F)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.12)" }}>{emoji}</div>;
+  return <div className="ebubble" style={{ width: 40, height: 40, fontSize: 20, background: "#2E2E33" }}>{emoji}</div>;
 }
 
 function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedListIds }) {
@@ -1744,9 +1781,24 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
   const [confirm, setConfirm] = useState(null);   // {title,message,label,fn}
   const [recEdit, setRecEdit] = useState(null);   // regla recurrente en edición
   const [friendEmail, setFriendEmail] = useState("");
-  const [newSharedList, setNewSharedList] = useState(false);
   const [inviteList, setInviteList] = useState(null); // lista compartida a la que invitar
+  const [pushOn, setPushOn] = useState(false);
   const fileRef = useRef(null);
+
+  const privColor = useMemo(() => colorFromEmoji("🤫"), []);
+  const shareColor = useMemo(() => colorFromEmoji("👥"), []);
+  const bellColor = useMemo(() => colorFromEmoji("🔔"), []);
+
+  useEffect(() => {
+    let alive = true;
+    hasPushSubscription().then((v) => { if (alive) setPushOn(v); });
+    return () => { alive = false; };
+  }, [cloud.uid]);
+
+  const togglePush = async () => {
+    if (pushOn) { if (await cloud.api.disablePush()) setPushOn(false); }
+    else { const r = await cloud.api.enablePush(); if (r === "ok") setPushOn(true); }
+  };
 
   const listName = (id) => { const l = data.lists.find((x) => x.id === id); return l ? l.name : "—"; };
   const catsOf = data.categories.filter((c) => c.listId === catListId);
@@ -1790,13 +1842,29 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={pickPhoto} />
           <input className="name-input" value={data.profile.name} placeholder="Tu nombre" maxLength={30}
             onChange={(e) => actions.setProfile({ name: e.target.value })} />
+          {cloud.enabled && cloud.uid && (
+            <div className="account-card">
+              <Avatar profile={cloud.social.profile} size={40} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {(cloud.social.profile && cloud.social.profile.name) || "Sin nombre"}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--txt2)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {cloud.session.user.email}
+                </div>
+              </div>
+              <button className="mini-btn" aria-label="Cerrar sesión" onClick={() => { haptic(); cloud.api.signOut(); }}>
+                <Icon name="logout" size={14} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* -------- Amigos -------- */}
         <div className="disclosure">
           <button className="disc-head" onClick={() => toggle("friends")} aria-expanded={open === "friends"}>
             <GrayIconBubble emoji="👥" />
-            <span className="disc-title">Amigos y listas compartidas</span>
+            <span className="disc-title">Amigos</span>
             <span className={`chev ${open === "friends" ? "open" : ""}`}><Icon name="chevR" size={16} /></span>
           </button>
           {open === "friends" && (
@@ -1810,20 +1878,6 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
                 <AuthBox cloud={cloud} showToast={showToast} defaultName={data.profile.name} />
               ) : (
                 <>
-                  <div className="f-row" style={{ padding: "11px 14px" }}>
-                    <Avatar profile={cloud.social.profile} size={40} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {(cloud.social.profile && cloud.social.profile.name) || "Sin nombre"}
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--txt2)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {cloud.session.user.email}
-                      </div>
-                    </div>
-                    <button className="mini-btn" aria-label="Cerrar sesión" onClick={() => { haptic(); cloud.api.signOut(); }}>
-                      <Icon name="logout" size={14} />
-                    </button>
-                  </div>
                   <div className="f-row" style={{ padding: "8px 14px" }}>
                     <input className="f-input left" type="email" value={friendEmail} placeholder="correo@de-tu-amigo.com"
                       onChange={(e) => setFriendEmail(e.target.value)}
@@ -1852,17 +1906,22 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
                       }}><Icon name="trash" size={14} /></button>
                     </div>
                   ))}
-                  <button className="add-row" onClick={() => { haptic(); setNewSharedList(true); }}>
-                    <Icon name="plus" size={16} /> Crear lista compartida
-                  </button>
-                  <button className="add-row" onClick={() => { haptic(); cloud.api.enablePush(); }}>
-                    <Icon name="bell" size={16} /> Activar notificaciones push
-                  </button>
                 </>
               )}
             </div>
           )}
         </div>
+
+        {/* -------- Notificaciones (interruptor) -------- */}
+        {cloud.enabled && cloud.uid && (
+          <div className="disclosure">
+            <div className="disc-head" style={{ cursor: "default" }}>
+              <EmojiBubble emoji="🔔" color={bellColor} size={40} fontSize={20} />
+              <span className="disc-title">Activar notificaciones</span>
+              <Switch on={pushOn} onToggle={togglePush} label="Activar notificaciones" />
+            </div>
+          </div>
+        )}
 
         {/* -------- Categorías -------- */}
         <div className="disclosure">
@@ -1879,22 +1938,28 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
                 ))}
               </div>
               {catsOf.map((c) => (
-                <div key={c.id} className="f-row" style={{ padding: "11px 14px" }}>
-                  <EmojiBubble emoji={c.emoji} color={c.color} size={40} />
-                  <span style={{ flex: 1, fontWeight: 600, fontSize: 15, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
-                  <div className="mini-actions">
-                    <button className="mini-btn" aria-label={`Editar ${c.name}`} onClick={() => { haptic(); setCatForm({ initial: c }); }}><Icon name="pencil" size={14} /></button>
-                    <button className="mini-btn del" aria-label={`Eliminar ${c.name}`} onClick={() => {
-                      haptic();
-                      const n = data.transactions.filter((t) => t.categoryId === c.id).length;
-                      setConfirm({
-                        title: `¿Eliminar “${c.name}”?`,
-                        message: n ? `También se eliminarán ${n} movimiento${n === 1 ? "" : "s"} y sus recurrencias. Esta acción no se puede deshacer.` : "Esta acción no se puede deshacer.",
-                        fn: () => { actions.deleteCategory(c.id); showToast("🗑️", "Categoría eliminada"); },
-                      });
-                    }}><Icon name="trash" size={14} /></button>
+                <SwipeRow key={c.id} deleteLabel={`Eliminar ${c.name}`} onDelete={() => {
+                  const n = data.transactions.filter((t) => t.categoryId === c.id).length;
+                  setConfirm({
+                    title: `¿Eliminar “${c.name}”?`,
+                    message: n ? `También se eliminarán ${n} movimiento${n === 1 ? "" : "s"} y sus recurrencias. Esta acción no se puede deshacer.` : "Esta acción no se puede deshacer.",
+                    fn: () => { actions.deleteCategory(c.id); showToast("🗑️", "Categoría eliminada"); },
+                  });
+                }}>
+                  <div className="f-row" style={{ padding: "11px 14px" }}>
+                    <button aria-label={`Cambiar emoji de ${c.name}`} onClick={() => { haptic(); setCatForm({ initial: c }); }}>
+                      <EmojiBubble emoji={c.emoji} color={c.color} size={40} />
+                    </button>
+                    <input className="f-input left" style={{ fontWeight: 600, fontSize: 15 }} defaultValue={c.name} maxLength={28}
+                      aria-label={`Nombre de ${c.name}`}
+                      onBlur={(e) => {
+                        const v = e.target.value.trim();
+                        if (v && v !== c.name) { actions.updateCategory(c.id, { name: v }); showToast("✅", "Categoría actualizada"); }
+                        else e.target.value = c.name;
+                      }}
+                      onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }} />
                   </div>
-                </div>
+                </SwipeRow>
               ))}
               <button className="add-row" onClick={() => { haptic(); setCatForm({ initial: null }); }}><Icon name="plus" size={16} /> Agregar categoría</button>
             </div>
@@ -1916,11 +1981,12 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
                 const nMembers = isShared ? cloud.social.members.filter((m) => m.listId === l.id).length : 0;
                 return (
                   <div key={l.id} className="f-row" style={{ padding: "11px 14px" }}>
+                    <EmojiBubble emoji={isShared ? "👥" : "🤫"} color={isShared ? shareColor : privColor} size={40} />
                     <span style={{ flex: 1, fontWeight: 600, fontSize: 15, minWidth: 0 }}>{l.name}
                       {l.id === data.activeListId && <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 800, marginLeft: 8 }}>ACTIVA</span>}
-                      {isShared && (
+                      {isShared && nMembers > 0 && (
                         <div style={{ fontSize: 11.5, color: "var(--txt2)", fontWeight: 700, marginTop: 2 }}>
-                          👥 Compartida{nMembers ? ` · ${nMembers} miembro${nMembers === 1 ? "" : "s"}` : ""}
+                          {nMembers} miembro{nMembers === 1 ? "" : "s"}
                         </div>
                       )}
                     </span>
@@ -2038,8 +2104,6 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
       />
       <ConfirmSheet open={!!confirm} onClose={() => setConfirm(null)} title={confirm ? confirm.title : ""} message={confirm ? confirm.message : ""}
         confirmLabel={confirm && confirm.label ? confirm.label : "Eliminar"} onConfirm={() => confirm && confirm.fn()} />
-      <PromptSheet open={newSharedList} onClose={() => setNewSharedList(false)} title="Nueva lista compartida" placeholder="Ej. Casa, Pareja, Viaje…" confirmLabel="Crear"
-        onConfirm={(v) => cloud.api.createSharedList(v)} />
       <InviteSheet open={!!inviteList} onClose={() => setInviteList(null)} list={inviteList} cloud={cloud} />
     </>
   );
