@@ -720,21 +720,19 @@ function Sheet({ open, onClose, title, children, footer }) {
   useEffect(() => {
     if (!mounted || typeof window === "undefined" || !window.visualViewport) return;
     const vv = window.visualViewport;
-    let timer = null;
-    /* el teclado dispara muchos eventos mientras se anima: esperamos a que
-       se estabilice y movemos la hoja una sola vez (evita parpadeos) */
-    const onChange = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        const v = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
-        setKb((prev) => (Math.abs(prev - v) < 4 ? prev : v));
-      }, 90);
+    let raf = null;
+    /* sigue al teclado fotograma a fotograma (sin transición): la hoja
+       se mueve pegada a él y nunca queda oculta ni parpadea */
+    const apply = () => {
+      raf = null;
+      setKb(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)));
     };
+    const onChange = () => { if (raf === null) raf = requestAnimationFrame(apply); };
     vv.addEventListener("resize", onChange);
     vv.addEventListener("scroll", onChange);
     onChange();
     return () => {
-      clearTimeout(timer);
+      if (raf !== null) cancelAnimationFrame(raf);
       vv.removeEventListener("resize", onChange);
       vv.removeEventListener("scroll", onChange);
       setKb(0);
@@ -745,7 +743,7 @@ function Sheet({ open, onClose, title, children, footer }) {
     <>
       <div className={`sheet-backdrop ${closing ? "closing" : ""}`} onClick={onClose} />
       <div className={`sheet ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={title}
-        style={kb ? { bottom: kb, maxHeight: `calc(96dvh - ${kb}px)`, transition: "bottom .25s var(--ease-ios)" } : undefined}>
+        style={kb ? { bottom: kb, maxHeight: `calc(96dvh - ${kb}px)` } : undefined}>
         <div className="grabber" />
         {title != null && (
           <div className="sheet-title-row">
