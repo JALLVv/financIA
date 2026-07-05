@@ -13,6 +13,7 @@ export const supabase = cloudEnabled ? createClient(cfg.supabaseUrl, cfg.supabas
 export const EMPTY_SOCIAL = {
   profile: null, friends: [], notifications: [],
   lists: [], members: [], categories: [], transactions: [],
+  people: new Map(),
 };
 
 /* filas de Supabase → forma que usa la app */
@@ -36,7 +37,11 @@ export async function fetchSocial(uid) {
   ]);
   const friendIds = (fr.data || []).map((f) => (f.user_lo === uid ? f.user_hi : f.user_lo));
   const memberIds = (members.data || []).map((m) => m.user_id);
-  const ids = [...new Set([...friendIds, ...memberIds])];
+  /* también los remitentes de notificaciones, para mostrar su foto actual */
+  const senderIds = (notifs.data || [])
+    .map((n) => { const p = n.payload || {}; const who = p.from || p.author; return who && who.id; })
+    .filter(Boolean);
+  const ids = [...new Set([...friendIds, ...memberIds, ...senderIds])];
   let profileMap = new Map();
   if (ids.length) {
     const { data } = await supabase.from("profiles").select("id,name,photo,email").in("id", ids);
@@ -52,6 +57,7 @@ export async function fetchSocial(uid) {
     })),
     categories: (cats.data || []).map(mapCat),
     transactions: (txs.data || []).map(mapTx),
+    people: profileMap,
   };
 }
 

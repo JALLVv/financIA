@@ -221,6 +221,10 @@ create or replace function public.respond_friend_request(request_id uuid, accept
 returns void language plpgsql security definer set search_path = public as $$
 declare r record;
 begin
+  -- la notificación se elimina siempre, aunque la solicitud ya no exista
+  delete from notifications
+    where user_id = auth.uid() and kind = 'friend_request'
+      and payload->>'request_id' = request_id::text;
   select * into r from friend_requests where id = request_id and to_user = auth.uid();
   if not found then return; end if;
   if accept then
@@ -229,9 +233,6 @@ begin
     on conflict do nothing;
   end if;
   delete from friend_requests where id = request_id;
-  delete from notifications
-    where user_id = auth.uid() and kind = 'friend_request'
-      and payload->>'request_id' = request_id::text;
 end $$;
 
 -- eliminar amistad (desaparece para ambos)
@@ -294,15 +295,16 @@ create or replace function public.respond_list_invite(invite_id uuid, accept boo
 returns void language plpgsql security definer set search_path = public as $$
 declare r record;
 begin
+  -- la notificación se elimina siempre, aunque la invitación ya no exista
+  delete from notifications
+    where user_id = auth.uid() and kind = 'list_invite'
+      and payload->>'invite_id' = invite_id::text;
   select * into r from list_invites where id = invite_id and to_user = auth.uid();
   if not found then return; end if;
   if accept then
     insert into list_members (list_id, user_id) values (r.list_id, auth.uid()) on conflict do nothing;
   end if;
   delete from list_invites where id = invite_id;
-  delete from notifications
-    where user_id = auth.uid() and kind = 'list_invite'
-      and payload->>'invite_id' = invite_id::text;
 end $$;
 
 -- salir de una lista (si eres dueño, se elimina para todos)

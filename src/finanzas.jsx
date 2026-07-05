@@ -1125,10 +1125,11 @@ function useCloud(showToast) {
         refetch();
         return d;
       },
-      respondFriendRequest: async (id, accept) => {
+      respondFriendRequest: async (id, accept, notifId) => {
         const { error } = await cloudApi.respondFriendRequest(id, accept);
         if (error) err(error);
         else showToast(accept ? "🤝" : "🗑️", accept ? "Solicitud aceptada" : "Solicitud rechazada");
+        if (notifId) { try { await cloudApi.deleteNotification(notifId); } catch (e) {} }
         refetch();
       },
       removeFriend: async (fid) => {
@@ -1164,10 +1165,11 @@ function useCloud(showToast) {
         refetch();
         return d;
       },
-      respondListInvite: async (id, accept) => {
+      respondListInvite: async (id, accept, notifId) => {
         const { error } = await cloudApi.respondListInvite(id, accept);
         if (error) err(error);
         else showToast(accept ? "📋" : "🗑️", accept ? "Te uniste a la lista compartida" : "Invitación rechazada");
+        if (notifId) { try { await cloudApi.deleteNotification(notifId); } catch (e) {} }
         refetch();
       },
       addCategory: async (listId, p) => {
@@ -1260,33 +1262,34 @@ function AuthBox({ cloud, showToast, defaultName }) {
 
 function NotifRow({ n, cloud }) {
   const p = n.payload || {};
-  let from = null, title = "", sub = "", actionable = false;
+  const raw = p.from || p.author || null;
+  /* perfil actual del remitente (foto al día), con el payload como respaldo */
+  const sender = (raw && raw.id && cloud.social.people.get(raw.id)) || raw;
+  const senderName = (sender && (sender.name || sender.email)) || "Alguien";
+  let title = "", sub = "", actionable = false;
   if (n.kind === "movement") {
-    from = p.author;
-    title = `${(p.author && p.author.name) || "Alguien"} agregó un ${p.type === "income" ? "ingreso" : "gasto"} a ${p.list_name || "una lista"}`;
+    title = `${senderName} agregó un ${p.type === "income" ? "ingreso" : "gasto"} a ${p.list_name || "una lista"}`;
     const amt = `${p.type === "income" ? "+" : "−"}${fmt(Number(p.amount || 0))}`;
     sub = [p.description, amt, timeAgo(n.created_at)].filter(Boolean).join(" · ");
   } else if (n.kind === "friend_request") {
-    from = p.from;
-    title = `${(p.from && p.from.name) || "Alguien"} quiere añadirte como amigo`;
+    title = `${senderName} quiere añadirte como amigo`;
     sub = `Solicitud de amistad · ${timeAgo(n.created_at)}`;
     actionable = true;
   } else if (n.kind === "list_invite") {
-    from = p.from;
-    title = `${(p.from && p.from.name) || "Alguien"} quiere añadirte a una lista compartida`;
+    title = `${senderName} quiere añadirte a una lista compartida`;
     sub = `${p.list_name ? `Lista: ${p.list_name} · ` : ""}${timeAgo(n.created_at)}`;
     actionable = true;
   } else return null;
 
   const respond = (accept) => {
     haptic(12);
-    if (n.kind === "friend_request") cloud.api.respondFriendRequest(p.request_id, accept);
-    else cloud.api.respondListInvite(p.invite_id, accept);
+    if (n.kind === "friend_request") cloud.api.respondFriendRequest(p.request_id, accept, n.id);
+    else cloud.api.respondListInvite(p.invite_id, accept, n.id);
   };
 
   return (
     <div className="notif-row">
-      <Avatar profile={from} size={40} />
+      <Avatar profile={sender} size={40} />
       <div className="notif-main">
         <div className="notif-title">{title}</div>
         <div className="notif-sub">{sub}</div>
@@ -1589,13 +1592,60 @@ function PeriodSheet({ open, onClose, period, setPeriod, txs }) {
   );
 }
 
-/* ----------------------- Selector de lista ----------------------- */
-function ListSheet({ open, onClose, data, onSelect, onCreate, canShare }) {
-  const [adding, setAdding] = useState(null); // null | "local" | "shared"
+/* ----------------------- Formulario de lista (privada o compartida) ----------------------- */
+function ListFormSheet({ open, onClose, canShare, onCreate }) {
   const [name, setName] = useState("");
+  const [shared, setShared] = useState(false);
   const privColor = useMemo(() => colorFromEmoji("🤫"), []);
   const shareColor = useMemo(() => colorFromEmoji("👥"), []);
-  useEffect(() => { if (open) { setAdding(null); setName(""); } }, [open]);
+  useEffect(() => { if (open) { setName(""); setShared(false); } }, [open]);
+  return (
+    <Sheet open={open} onClose={onClose} title="Nueva lista"
+      footer={
+        <button className="primary-btn" style={{ marginTop: 12 }} disabled={!name.trim()}
+          onClick={() => { haptic(14); onCreate(name.trim(), shared && canShare); onClose(); }}>
+          Crear lista
+        </button>
+      }>
+      <div className="f-group">
+        <div className="f-row">
+          <span className="f-label">Nombre</span>
+          <input className="f-input" value={name} placeholder="Ej. Viajes" maxLength={28}
+            onChange={(e) => setName(e.target.value)} />
+        </div>
+      </div>
+      {canShare ? (
+        <div className="f-group">
+          <button className="row-pick" onClick={() => { haptic(); setShared(false); }}>
+            <EmojiBubble emoji="🤫" color={privColor} size={40} />
+            <div className="r-main">Privada
+              <div className="r-sub">Solo tú la verás, se guarda en este dispositivo</div>
+            </div>
+            {!shared && <span className="check"><Icon name="check" size={18} /></span>}
+          </button>
+          <button className="row-pick" onClick={() => { haptic(); setShared(true); }}>
+            <EmojiBubble emoji="👥" color={shareColor} size={40} />
+            <div className="r-main">Compartida
+              <div className="r-sub">Invita amigos y sincroniza en tiempo real</div>
+            </div>
+            {shared && <span className="check"><Icon name="check" size={18} /></span>}
+          </button>
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: "var(--txt3)", margin: "2px 2px 4px", fontWeight: 600 }}>
+          Inicia sesión en Perfil → Amigos para poder crear listas compartidas.
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
+/* ----------------------- Selector de lista ----------------------- */
+function ListSheet({ open, onClose, data, onSelect, onCreate, canShare }) {
+  const [formOpen, setFormOpen] = useState(false);
+  const privColor = useMemo(() => colorFromEmoji("🤫"), []);
+  const shareColor = useMemo(() => colorFromEmoji("👥"), []);
+  useEffect(() => { if (open) setFormOpen(false); }, [open]);
 
   const balances = useMemo(() => {
     const m = new Map();
@@ -1624,31 +1674,12 @@ function ListSheet({ open, onClose, data, onSelect, onCreate, canShare }) {
           );
         })}
       </div>
-      {adding ? (
-        <div className="f-group content-swap">
-          <div className="f-row">
-            <input className="f-input left" autoFocus value={name}
-              placeholder={adding === "shared" ? "Nombre de la lista compartida" : "Nombre de la lista"} maxLength={28}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) { onCreate(name.trim(), adding === "shared"); onClose(); } }} />
-            <button className="chip" style={{ padding: "7px 14px" }} disabled={!name.trim()}
-              onClick={() => { if (name.trim()) { haptic(14); onCreate(name.trim(), adding === "shared"); onClose(); } }}>Crear</button>
-          </div>
-        </div>
-      ) : (
-        <>
-          <button className="add-row" style={{ borderRadius: 18, background: "var(--card)", border: "1px solid var(--line)" }}
-            onClick={() => { haptic(); setAdding("local"); }}>
-            <Icon name="plus" size={17} /> Nueva lista
-          </button>
-          {canShare && (
-            <button className="add-row" style={{ borderRadius: 18, background: "var(--card)", border: "1px solid var(--line)", marginTop: 8 }}
-              onClick={() => { haptic(); setAdding("shared"); }}>
-              <Icon name="users" size={17} /> Nueva lista compartida
-            </button>
-          )}
-        </>
-      )}
+      <button className="add-row" style={{ borderRadius: 18, background: "var(--card)", border: "1px solid var(--line)" }}
+        onClick={() => { haptic(); setFormOpen(true); }}>
+        <Icon name="plus" size={17} /> Nueva lista
+      </button>
+      <ListFormSheet open={formOpen} onClose={() => setFormOpen(false)} canShare={canShare}
+        onCreate={(v, shared) => { onCreate(v, shared); onClose(); }} />
     </Sheet>
   );
 }
@@ -2126,8 +2157,11 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
           else { actions.createCategory(catListId, p); showToast("✨", "Categoría creada"); }
         }}
       />
-      <PromptSheet open={newList} onClose={() => setNewList(false)} title="Nueva lista" placeholder="Ej. Viajes" confirmLabel="Crear"
-        onConfirm={(v) => { actions.createList(v); showToast("✨", "Lista creada"); }} />
+      <ListFormSheet open={newList} onClose={() => setNewList(false)} canShare={!!(cloud.enabled && cloud.uid)}
+        onCreate={(v, shared) => {
+          if (shared) cloud.api.createSharedList(v);
+          else { actions.createList(v); showToast("✨", "Lista creada"); }
+        }} />
       <TxFormSheet
         open={!!recEdit} onClose={() => setRecEdit(null)} data={data} defaultListId={data.activeListId} sharedListIds={sharedListIds}
         initial={recEdit && !recEdit.__new ? { id: recEdit.id, type: recEdit.type, amount: recEdit.amount, description: recEdit.description, listId: recEdit.listId, categoryId: recEdit.categoryId, date: recEdit.nextDate || recEdit.startDate, frequency: recEdit.frequency } : null}
@@ -2437,8 +2471,8 @@ export default function App() {
           </button>
         </section>
 
-        {/* ---------- gráfico y movimientos (animados al cambiar de lista) ---------- */}
-        <div key={activeList.id} className="content-swap">
+        {/* ---------- gráfico y movimientos (animados al cambiar de lista o de tipo) ---------- */}
+        <div key={`${activeList.id}|${txType}`} className="content-swap">
         <section className="chart-section">
           {chartGroups.length === 0 ? (
             <EmptyState emoji={txType === "expense" ? "🧾" : "💸"}
