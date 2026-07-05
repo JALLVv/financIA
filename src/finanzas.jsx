@@ -20,7 +20,8 @@ const CSS = `
   --ease-ios:cubic-bezier(.32,.72,0,1);
   --spring:cubic-bezier(.34,1.4,.64,1);
 }
-.fin-app,.fin-app *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+.fin-app,.fin-app *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+  font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;}
 .fin-app{
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;
   background:var(--bg); color:var(--txt); min-height:100dvh; width:100%;
@@ -209,9 +210,9 @@ input::placeholder{color:var(--txt3);}
   font-size:44px; font-weight:800; letter-spacing:-.04em; padding:0; caret-color:var(--accent);
   min-width:1.1ch; max-width:72%;
 }
-.type-toggle{display:flex; gap:8px; margin:4px 0 16px;}
+.type-toggle{display:flex; gap:8px; margin:2px auto 16px; max-width:200px;}
 .type-btn{
-  flex:1; padding:11px 0; border-radius:15px; font-weight:700; font-size:15px; color:var(--txt2);
+  flex:1; padding:7px 0; border-radius:13px; font-weight:800; font-size:19px; line-height:1.2; color:var(--txt2);
   background:var(--card); border:1px solid var(--line); transition:all .25s var(--ease-ios);
 }
 .type-btn.exp.on{background:rgba(255,69,58,.14); color:var(--red); border-color:rgba(255,69,58,.4);}
@@ -761,9 +762,10 @@ function Overlay({ open, onClose, children }) {
   return <div className={`overlay ${closing ? "closing" : ""}`}>{children({ requestClose: onClose })}</div>;
 }
 
+/* tinte suave del color (33 = 20% alfa) para que resalte el emoji */
 const EmojiBubble = memo(function EmojiBubble({ emoji, color, size = 44, fontSize }) {
   return (
-    <div className="ebubble" style={{ width: size, height: size, fontSize: fontSize || size * 0.52, background: color }}>
+    <div className="ebubble" style={{ width: size, height: size, fontSize: fontSize || size * 0.52, background: `${color}33` }}>
       <span style={{ transform: "translateY(1px)" }}>{emoji}</span>
     </div>
   );
@@ -984,7 +986,7 @@ function CategoryFormSheet({ open, onClose, onSave, listName, initial }) {
           aria-label="Emoji de la categoría"
           placeholder="+"
           onChange={(e) => { const g = firstGrapheme(e.target.value); setEmoji(g); if (g) haptic(4); }}
-          style={{ background: emoji ? autoColor : "var(--card2)" }}
+          style={{ background: emoji ? `${autoColor}33` : "var(--card2)" }}
         />
         <div style={{ fontSize: 12.5, color: "var(--txt2)", marginTop: 10, fontWeight: 600 }}>
           Toca y elige un emoji con tu teclado · Lista: {listName}
@@ -1410,8 +1412,8 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
           />
         </div>
         <div className="type-toggle" role="tablist">
-          <button className={`type-btn exp ${type === "expense" ? "on" : ""}`} onClick={() => { haptic(); setType("expense"); }}>− Gasto</button>
-          <button className={`type-btn inc ${type === "income" ? "on" : ""}`} onClick={() => { haptic(); setType("income"); }}>+ Ingreso</button>
+          <button className={`type-btn exp ${type === "expense" ? "on" : ""}`} aria-label="Gasto" onClick={() => { haptic(); setType("expense"); }}>−</button>
+          <button className={`type-btn inc ${type === "income" ? "on" : ""}`} aria-label="Ingreso" onClick={() => { haptic(); setType("income"); }}>+</button>
         </div>
 
         <div className="f-group">
@@ -1661,6 +1663,22 @@ function SearchScreen({ requestClose, data, onPressTx }) {
     () => data.categories.filter((c) => listId === "all" || c.listId === listId),
     [data.categories, listId]
   );
+  /* con "Todas las listas", las categorías repetidas (mismo emoji y nombre)
+     se muestran una sola vez y al filtrar se incluyen todas sus gemelas */
+  const catGroups = useMemo(() => {
+    const map = new Map();
+    for (const c of catOptions) {
+      const k = c.emoji + "|" + c.name.trim().toLowerCase();
+      if (!map.has(k)) map.set(k, { rep: c, ids: [c.id] });
+      else map.get(k).ids.push(c.id);
+    }
+    return [...map.values()];
+  }, [catOptions]);
+  const catIdSet = useMemo(() => {
+    if (catId === "all") return null;
+    const g = catGroups.find((x) => x.ids.includes(catId));
+    return new Set(g ? g.ids : [catId]);
+  }, [catId, catGroups]);
   useEffect(() => { if (catId !== "all" && !catOptions.some((c) => c.id === catId)) setCatId("all"); }, [listId]);
 
   /* transacciones del ámbito de lista elegido (para balances del selector de período) */
@@ -1681,7 +1699,7 @@ function SearchScreen({ requestClose, data, onPressTx }) {
       .filter((t) => {
         if (type !== "both" && t.type !== type) return false;
         if (listId !== "all" && t.listId !== listId) return false;
-        if (catId !== "all" && t.categoryId !== catId) return false;
+        if (catIdSet && !catIdSet.has(t.categoryId)) return false;
         if (!inPeriod(t)) return false;
         if (needle) {
           const c = catMap.get(t.categoryId);
@@ -1691,7 +1709,7 @@ function SearchScreen({ requestClose, data, onPressTx }) {
         return true;
       })
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-  }, [data.transactions, q, type, listId, catId, inPeriod, catMap]);
+  }, [data.transactions, q, type, listId, catIdSet, inPeriod, catMap]);
 
   const total = useMemo(() => results.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0), [results]);
 
@@ -1728,7 +1746,7 @@ function SearchScreen({ requestClose, data, onPressTx }) {
             options={[{ id: "all", label: "Todas las listas" }, ...data.lists.map((l) => ({ id: l.id, label: l.name }))]} />
           <DropPill label="Categorías" value={catId} display={catLabel} active={catId !== "all"}
             onChange={setCatId}
-            options={[{ id: "all", label: "Todas las categorías" }, ...catOptions.map((c) => ({ id: c.id, label: `${c.emoji} ${c.name}` }))]} />
+            options={[{ id: "all", label: "Todas las categorías" }, ...catGroups.map((g) => ({ id: g.rep.id, label: `${g.rep.emoji} ${g.rep.name}` }))]} />
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", margin: "14px 4px 0" }}>
@@ -1776,7 +1794,6 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
   const [open, setOpen] = useState(null); // 'friends' | 'cats' | 'lists' | 'rec'
   const [catListId, setCatListId] = useState(data.activeListId);
   const [catForm, setCatForm] = useState(null);   // {initial} | 'new'
-  const [renameL, setRenameL] = useState(null);   // lista a renombrar
   const [newList, setNewList] = useState(false);
   const [confirm, setConfirm] = useState(null);   // {title,message,label,fn}
   const [recEdit, setRecEdit] = useState(null);   // regla recurrente en edición
@@ -1891,20 +1908,20 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
                       le llegará una notificación para aceptarla.
                     </div>
                   ) : cloud.social.friends.map((f) => (
-                    <div key={f.id} className="f-row" style={{ padding: "11px 14px" }}>
-                      <Avatar profile={f} size={40} />
-                      <span style={{ flex: 1, fontWeight: 600, fontSize: 15, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {f.name || f.email}
-                      </span>
-                      <button className="mini-btn del" aria-label={`Eliminar a ${f.name || f.email}`} onClick={() => {
-                        haptic();
-                        setConfirm({
-                          title: `¿Eliminar a “${f.name || f.email}”?`,
-                          message: "Se eliminará de la lista de amigos de ambos. Podrán volver a agregarse más adelante.",
-                          fn: () => cloud.api.removeFriend(f.id),
-                        });
-                      }}><Icon name="trash" size={14} /></button>
-                    </div>
+                    <SwipeRow key={f.id} deleteLabel={`Eliminar a ${f.name || f.email}`} onDelete={() => {
+                      setConfirm({
+                        title: `¿Eliminar a “${f.name || f.email}”?`,
+                        message: "Se eliminará de la lista de amigos de ambos. Podrán volver a agregarse más adelante.",
+                        fn: () => cloud.api.removeFriend(f.id),
+                      });
+                    }}>
+                      <div className="f-row" style={{ padding: "11px 14px" }}>
+                        <Avatar profile={f} size={40} />
+                        <span style={{ flex: 1, fontWeight: 600, fontSize: 15, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {f.name || f.email}
+                        </span>
+                      </div>
+                    </SwipeRow>
                   ))}
                 </>
               )}
@@ -1979,43 +1996,48 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
                 const isShared = !!l.shared;
                 const isOwner = isShared && cloud && l.owner === cloud.uid;
                 const nMembers = isShared ? cloud.social.members.filter((m) => m.listId === l.id).length : 0;
+                const subParts = [];
+                if (isShared && nMembers > 0) subParts.push(`${nMembers} miembro${nMembers === 1 ? "" : "s"}`);
+                if (l.id === data.activeListId) subParts.push("Activa");
                 return (
-                  <div key={l.id} className="f-row" style={{ padding: "11px 14px" }}>
-                    <EmojiBubble emoji={isShared ? "👥" : "🤫"} color={isShared ? shareColor : privColor} size={40} />
-                    <span style={{ flex: 1, fontWeight: 600, fontSize: 15, minWidth: 0 }}>{l.name}
-                      {l.id === data.activeListId && <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 800, marginLeft: 8 }}>ACTIVA</span>}
-                      {isShared && nMembers > 0 && (
-                        <div style={{ fontSize: 11.5, color: "var(--txt2)", fontWeight: 700, marginTop: 2 }}>
-                          {nMembers} miembro{nMembers === 1 ? "" : "s"}
-                        </div>
-                      )}
-                    </span>
-                    <div className="mini-actions">
+                  <SwipeRow key={l.id} deleteLabel={isShared && !isOwner ? `Salir de ${l.name}` : `Eliminar ${l.name}`} onDelete={() => {
+                    if (!isShared && data.lists.filter((x) => !x.shared).length === 1) { showToast("⚠️", "Necesitas al menos una lista"); return; }
+                    const n = data.transactions.filter((t) => t.listId === l.id).length;
+                    setConfirm(isShared ? {
+                      title: isOwner ? `¿Eliminar “${l.name}”?` : `¿Salir de “${l.name}”?`,
+                      message: isOwner
+                        ? "Es una lista compartida: se eliminará para todos los miembros junto con sus movimientos."
+                        : "Saldrás de esta lista compartida. Los demás miembros la conservarán.",
+                      label: isOwner ? "Eliminar" : "Salir",
+                      fn: () => { actions.deleteList(l.id); showToast("🗑️", isOwner ? "Lista eliminada" : "Saliste de la lista"); },
+                    } : {
+                      title: `¿Eliminar “${l.name}”?`,
+                      message: `Se eliminarán sus categorías, recurrencias y ${n} movimiento${n === 1 ? "" : "s"}. Esta acción no se puede deshacer.`,
+                      fn: () => { actions.deleteList(l.id); showToast("🗑️", "Lista eliminada"); },
+                    });
+                  }}>
+                    <div className="f-row" style={{ padding: "11px 14px" }}>
+                      <EmojiBubble emoji={isShared ? "👥" : "🤫"} color={isShared ? shareColor : privColor} size={40} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <input className="f-input left" style={{ fontWeight: 600, fontSize: 15, width: "100%" }} defaultValue={l.name} maxLength={28}
+                          aria-label={`Nombre de ${l.name}`}
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            if (v && v !== l.name) { actions.renameList(l.id, v); showToast("✅", "Lista renombrada"); }
+                            else e.target.value = l.name;
+                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }} />
+                        {subParts.length > 0 && (
+                          <div style={{ fontSize: 11.5, color: "var(--txt2)", fontWeight: 700, marginTop: 2 }}>{subParts.join(" · ")}</div>
+                        )}
+                      </div>
                       {isShared && (
                         <button className="mini-btn" aria-label={`Invitar amigos a ${l.name}`} onClick={() => { haptic(); setInviteList(l); }}>
                           <Icon name="userplus" size={14} />
                         </button>
                       )}
-                      <button className="mini-btn" aria-label={`Renombrar ${l.name}`} onClick={() => { haptic(); setRenameL(l); }}><Icon name="pencil" size={14} /></button>
-                      <button className="mini-btn del" aria-label={isShared && !isOwner ? `Salir de ${l.name}` : `Eliminar ${l.name}`} onClick={() => {
-                        haptic();
-                        if (!isShared && data.lists.filter((x) => !x.shared).length === 1) { showToast("⚠️", "Necesitas al menos una lista"); return; }
-                        const n = data.transactions.filter((t) => t.listId === l.id).length;
-                        setConfirm(isShared ? {
-                          title: isOwner ? `¿Eliminar “${l.name}”?` : `¿Salir de “${l.name}”?`,
-                          message: isOwner
-                            ? "Es una lista compartida: se eliminará para todos los miembros junto con sus movimientos."
-                            : "Saldrás de esta lista compartida. Los demás miembros la conservarán.",
-                          label: isOwner ? "Eliminar" : "Salir",
-                          fn: () => { actions.deleteList(l.id); showToast("🗑️", isOwner ? "Lista eliminada" : "Saliste de la lista"); },
-                        } : {
-                          title: `¿Eliminar “${l.name}”?`,
-                          message: `Se eliminarán sus categorías, recurrencias y ${n} movimiento${n === 1 ? "" : "s"}. Esta acción no se puede deshacer.`,
-                          fn: () => { actions.deleteList(l.id); showToast("🗑️", "Lista eliminada"); },
-                        });
-                      }}><Icon name="trash" size={14} /></button>
                     </div>
-                  </div>
+                  </SwipeRow>
                 );
               })}
               <button className="add-row" onClick={() => { haptic(); setNewList(true); }}><Icon name="plus" size={16} /> Agregar lista</button>
@@ -2040,28 +2062,27 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
               {data.recurring.map((r) => {
                 const c = catMap.get(r.categoryId) || { emoji: "❓", color: "#5D5D64", name: "—" };
                 return (
-                  <div key={r.id} className="f-row" style={{ padding: "11px 14px" }}>
-                    <EmojiBubble emoji={c.emoji} color={c.color} size={40} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {r.description || c.name} · <span style={{ color: r.type === "income" ? "var(--green)" : "var(--red)" }}>{r.type === "income" ? "+" : "−"}{fmt(r.amount)}</span>
+                  <SwipeRow key={r.id} deleteLabel="Eliminar recurrencia" onDelete={() => {
+                    setConfirm({
+                      title: "¿Eliminar recurrencia?",
+                      message: "Los movimientos ya generados se conservarán, pero no se crearán nuevos.",
+                      fn: () => { actions.deleteRecurring(r.id); showToast("🗑️", "Recurrencia eliminada"); },
+                    });
+                  }}>
+                    <button className="f-row" style={{ padding: "11px 14px", width: "100%", textAlign: "left" }}
+                      aria-label={`Editar recurrencia ${r.description || c.name}`}
+                      onClick={() => { haptic(); setRecEdit(r); }}>
+                      <EmojiBubble emoji={c.emoji} color={c.color} size={40} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {r.description || c.name} · <span style={{ color: r.type === "income" ? "var(--green)" : "var(--red)" }}>{r.type === "income" ? "+" : "−"}{fmt(r.amount)}</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: "var(--txt2)", fontWeight: 600, marginTop: 1 }}>
+                          {freqLabel(r.frequency)} · {listName(r.listId)} · próx. {r.nextDate ? fmtDate(r.nextDate) : "—"}
+                        </div>
                       </div>
-                      <div style={{ fontSize: 12, color: "var(--txt2)", fontWeight: 600, marginTop: 1 }}>
-                        {freqLabel(r.frequency)} · {listName(r.listId)} · próx. {r.nextDate ? fmtDate(r.nextDate) : "—"}
-                      </div>
-                    </div>
-                    <div className="mini-actions">
-                      <button className="mini-btn" aria-label="Editar recurrencia" onClick={() => { haptic(); setRecEdit(r); }}><Icon name="pencil" size={14} /></button>
-                      <button className="mini-btn del" aria-label="Eliminar recurrencia" onClick={() => {
-                        haptic();
-                        setConfirm({
-                          title: "¿Eliminar recurrencia?",
-                          message: "Los movimientos ya generados se conservarán, pero no se crearán nuevos.",
-                          fn: () => { actions.deleteRecurring(r.id); showToast("🗑️", "Recurrencia eliminada"); },
-                        });
-                      }}><Icon name="trash" size={14} /></button>
-                    </div>
-                  </div>
+                    </button>
+                  </SwipeRow>
                 );
               })}
               <button className="add-row" onClick={() => { haptic(); setRecEdit({ __new: true }); }}><Icon name="plus" size={16} /> Agregar recurrencia</button>
@@ -2083,8 +2104,6 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
           else { actions.createCategory(catListId, p); showToast("✨", "Categoría creada"); }
         }}
       />
-      <PromptSheet open={!!renameL} onClose={() => setRenameL(null)} title="Renombrar lista" placeholder="Nombre de la lista"
-        initial={renameL ? renameL.name : ""} onConfirm={(v) => { actions.renameList(renameL.id, v); showToast("✅", "Lista renombrada"); }} />
       <PromptSheet open={newList} onClose={() => setNewList(false)} title="Nueva lista" placeholder="Ej. Viajes" confirmLabel="Crear"
         onConfirm={(v) => { actions.createList(v); showToast("✨", "Lista creada"); }} />
       <TxFormSheet
