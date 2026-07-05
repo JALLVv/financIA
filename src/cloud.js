@@ -126,3 +126,36 @@ export async function enablePush(uid) {
   });
   return error ? "error" : "ok";
 }
+
+/* apaga el push: elimina la suscripción del navegador y de la base */
+export async function disablePush() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return "unsupported";
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  if (sub) {
+    await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+    try { await sub.unsubscribe(); } catch (e) {}
+  }
+  return "ok";
+}
+
+/* re-registra en la base una suscripción ya existente (no crea nuevas) */
+export async function refreshPush(uid) {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  if (!sub) return;
+  const j = sub.toJSON();
+  await supabase.from("push_subscriptions").upsert({
+    user_id: uid, endpoint: sub.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth,
+  });
+}
+
+/* ¿hay una suscripción push activa en este dispositivo? */
+export async function hasPushSubscription() {
+  try {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted" || !("serviceWorker" in navigator)) return false;
+    const reg = await navigator.serviceWorker.ready;
+    return !!(await reg.pushManager.getSubscription());
+  } catch (e) { return false; }
+}
