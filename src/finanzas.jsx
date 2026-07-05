@@ -720,11 +720,25 @@ function Sheet({ open, onClose, title, children, footer }) {
   useEffect(() => {
     if (!mounted || typeof window === "undefined" || !window.visualViewport) return;
     const vv = window.visualViewport;
-    const onResize = () => setKb(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
-    vv.addEventListener("resize", onResize);
-    vv.addEventListener("scroll", onResize);
-    onResize();
-    return () => { vv.removeEventListener("resize", onResize); vv.removeEventListener("scroll", onResize); setKb(0); };
+    let timer = null;
+    /* el teclado dispara muchos eventos mientras se anima: esperamos a que
+       se estabilice y movemos la hoja una sola vez (evita parpadeos) */
+    const onChange = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const v = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+        setKb((prev) => (Math.abs(prev - v) < 4 ? prev : v));
+      }, 90);
+    };
+    vv.addEventListener("resize", onChange);
+    vv.addEventListener("scroll", onChange);
+    onChange();
+    return () => {
+      clearTimeout(timer);
+      vv.removeEventListener("resize", onChange);
+      vv.removeEventListener("scroll", onChange);
+      setKb(0);
+    };
   }, [mounted]);
   if (!mounted) return null;
   return (
