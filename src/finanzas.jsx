@@ -721,8 +721,6 @@ function Sheet({ open, onClose, title, children, footer }) {
     if (!mounted || typeof window === "undefined" || !window.visualViewport) return;
     const vv = window.visualViewport;
     let raf = null;
-    /* sigue al teclado fotograma a fotograma (sin transición): la hoja
-       se mueve pegada a él y nunca queda oculta ni parpadea */
     const apply = () => {
       raf = null;
       setKb(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)));
@@ -738,12 +736,23 @@ function Sheet({ open, onClose, title, children, footer }) {
       setKb(0);
     };
   }, [mounted]);
+
+  /* la hoja NO se mueve con el teclado (mover elementos fijos crea bucles de
+     rebote en iOS): el interior gana espacio inferior y el campo enfocado se
+     desplaza a la vista dentro del área con scroll */
+  const onFocusCapture = (e) => {
+    const t = e.target;
+    if (!t || !/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
+    setTimeout(() => {
+      try { t.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (err) {}
+    }, 350);
+  };
+
   if (!mounted) return null;
   return (
     <>
       <div className={`sheet-backdrop ${closing ? "closing" : ""}`} onClick={onClose} />
-      <div className={`sheet ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={title}
-        style={kb ? { bottom: kb, maxHeight: `calc(96dvh - ${kb}px)` } : undefined}>
+      <div className={`sheet ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={title} onFocusCapture={onFocusCapture}>
         <div className="grabber" />
         {title != null && (
           <div className="sheet-title-row">
@@ -751,7 +760,7 @@ function Sheet({ open, onClose, title, children, footer }) {
             <button className="sheet-close" onClick={onClose} aria-label="Cerrar"><Icon name="x" size={15} /></button>
           </div>
         )}
-        <div className="sheet-body">{children}</div>
+        <div className="sheet-body" style={kb ? { paddingBottom: kb } : undefined}>{children}</div>
         {footer}
       </div>
     </>
