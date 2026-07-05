@@ -142,6 +142,7 @@ input::placeholder{color:var(--txt3);}
 .tx-row:active{background:var(--card2);}
 .tx-mid{flex:1; min-width:0;}
 .tx-cat{font-size:13px; color:var(--txt2); font-weight:500;}
+.tx-author{color:var(--accent); font-weight:800;}
 .tx-desc{font-size:15px; font-weight:700; margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .tx-amt{font-weight:700; font-size:15px; font-feature-settings:"tnum" 1; white-space:nowrap; letter-spacing:-.03em;}
 .tx-amt.inc{color:var(--green);} .tx-amt.exp{color:var(--txt);}
@@ -921,7 +922,11 @@ const TxRow = memo(function TxRow({ tx, cat, onPress, showList, listName }) {
     <button className="tx-row" onClick={() => onPress && onPress(tx)}>
       <EmojiBubble emoji={cat.emoji} color={cat.color} size={44} />
       <div className="tx-mid">
-        <div className="tx-cat">{cat.name}{showList ? ` · ${listName}` : ""}</div>
+        <div className="tx-cat">
+          {cat.name}
+          {tx.authorName ? <> · <span className="tx-author">{tx.authorName}</span></> : null}
+          {showList ? ` · ${listName}` : ""}
+        </div>
         <div className="tx-desc">{tx.description || cat.name}</div>
       </div>
       <div style={{ textAlign: "right" }}>

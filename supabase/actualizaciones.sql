@@ -43,3 +43,39 @@ begin
   end if;
   delete from list_invites where id = invite_id;
 end $$;
+
+-- 2026-07-05 (2): al eliminar un movimiento compartido, una invitación o
+-- una solicitud, se eliminan también sus notificaciones
+-- ------- limpiar notificaciones cuando se elimina lo que las originó -------
+create or replace function public.cleanup_tx_notifications()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  delete from notifications where kind = 'movement' and payload->>'tx_id' = old.id::text;
+  return old;
+end $$;
+drop trigger if exists on_shared_transaction_delete on public.shared_transactions;
+create trigger on_shared_transaction_delete
+  after delete on public.shared_transactions
+  for each row execute function public.cleanup_tx_notifications();
+
+create or replace function public.cleanup_invite_notifications()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  delete from notifications where kind = 'list_invite' and payload->>'invite_id' = old.id::text;
+  return old;
+end $$;
+drop trigger if exists on_list_invite_delete on public.list_invites;
+create trigger on_list_invite_delete
+  after delete on public.list_invites
+  for each row execute function public.cleanup_invite_notifications();
+
+create or replace function public.cleanup_request_notifications()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  delete from notifications where kind = 'friend_request' and payload->>'request_id' = old.id::text;
+  return old;
+end $$;
+drop trigger if exists on_friend_request_delete on public.friend_requests;
+create trigger on_friend_request_delete
+  after delete on public.friend_requests
+  for each row execute function public.cleanup_request_notifications();
