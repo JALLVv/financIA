@@ -25,7 +25,17 @@ const mapTx = (t) => ({
 });
 
 /* Carga todo el estado social del usuario (RLS filtra lo que no le toca). */
+/* las notificaciones que no son solicitudes caducan a las 24 h */
+const NOTIF_TTL_MS = 24 * 3600 * 1000;
+const isRequestKind = (k) => k === "friend_request" || k === "list_invite";
+
 export async function fetchSocial(uid) {
+  /* limpieza de caducadas (solo las propias, por RLS) — sin bloquear la carga */
+  supabase.from("notifications").delete()
+    .not("kind", "in", "(friend_request,list_invite)")
+    .lt("created_at", new Date(Date.now() - NOTIF_TTL_MS).toISOString())
+    .then(() => {}, () => {});
+
   const [prof, fr, notifs, lists, members, cats, txs] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", uid).maybeSingle(),
     supabase.from("friendships").select("*"),
@@ -41,22 +51,31 @@ export async function fetchSocial(uid) {
   const senderIds = (notifs.data || [])
     .map((n) => { const p = n.payload || {}; const who = p.from || p.author; return who && who.id; })
     .filter(Boolean);
-  const ids = [...new Set([...friendIds, ...memberIds, ...senderIds])];
+  const authorIds = (txs.data || []).map((t) => t.author).filter(Boolean);
+  const ids = [...new Set([...friendIds, ...memberIds, ...senderIds, ...authorIds])];
   let profileMap = new Map();
   if (ids.length) {
     const { data } = await supabase.from("profiles").select("id,name,photo,email").in("id", ids);
     profileMap = new Map((data || []).map((p) => [p.id, p]));
   }
+  const cutoff = Date.now() - NOTIF_TTL_MS;
   return {
     profile: prof.data || null,
     friends: friendIds.map((id) => profileMap.get(id)).filter(Boolean),
-    notifications: notifs.data || [],
+    notifications: (notifs.data || []).filter(
+      (n) => isRequestKind(n.kind) || new Date(n.created_at).getTime() >= cutoff
+    ),
     lists: lists.data || [],
     members: (members.data || []).map((m) => ({
       listId: m.list_id, userId: m.user_id, profile: profileMap.get(m.user_id) || null,
     })),
     categories: (cats.data || []).map(mapCat),
-    transactions: (txs.data || []).map(mapTx),
+    transactions: (txs.data || []).map((t) => {
+      const m = mapTx(t);
+      const p = profileMap.get(t.author);
+      m.authorName = p ? (p.name || p.email) : null;
+      return m;
+    }),
     people: profileMap,
   };
 }

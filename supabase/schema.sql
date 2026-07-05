@@ -342,6 +342,40 @@ create trigger on_shared_transaction_insert
   after insert on public.shared_transactions
   for each row execute function public.notify_shared_transaction();
 
+-- ------- limpiar notificaciones cuando se elimina lo que las originó -------
+create or replace function public.cleanup_tx_notifications()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  delete from notifications where kind = 'movement' and payload->>'tx_id' = old.id::text;
+  return old;
+end $$;
+drop trigger if exists on_shared_transaction_delete on public.shared_transactions;
+create trigger on_shared_transaction_delete
+  after delete on public.shared_transactions
+  for each row execute function public.cleanup_tx_notifications();
+
+create or replace function public.cleanup_invite_notifications()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  delete from notifications where kind = 'list_invite' and payload->>'invite_id' = old.id::text;
+  return old;
+end $$;
+drop trigger if exists on_list_invite_delete on public.list_invites;
+create trigger on_list_invite_delete
+  after delete on public.list_invites
+  for each row execute function public.cleanup_invite_notifications();
+
+create or replace function public.cleanup_request_notifications()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  delete from notifications where kind = 'friend_request' and payload->>'request_id' = old.id::text;
+  return old;
+end $$;
+drop trigger if exists on_friend_request_delete on public.friend_requests;
+create trigger on_friend_request_delete
+  after delete on public.friend_requests
+  for each row execute function public.cleanup_request_notifications();
+
 -- ---------------- tiempo real ----------------
 alter publication supabase_realtime add table
   public.notifications, public.shared_transactions, public.shared_categories,
