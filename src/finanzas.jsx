@@ -335,7 +335,7 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 .action-btn.destructive{color:var(--red);}
 
 .emoji-big-input{
-  width:92px; height:92px; margin:0 auto; display:block; text-align:center; font-size:52px; line-height:92px; padding:0; background:var(--card2);
+  width:92px; height:92px; margin:0 auto; display:block; text-align:center; font-size:52px; line-height:normal; padding:0; background:var(--card2);
   border:1px solid var(--line2); border-radius:28px; outline:none; caret-color:var(--accent); transition:border-color .2s;
 }
 .emoji-big-input::placeholder{color:var(--txt3); font-weight:300;}
@@ -642,21 +642,21 @@ const Icon = memo(function Icon({ name, size = 18, color = "currentColor", strok
     case "chevD": return <svg {...P}><polyline points="6 9 12 15 18 9" /></svg>;
     case "chevR": return <svg {...P}><polyline points="9 6 15 12 9 18" /></svg>;
     case "chevL": return <svg {...P}><polyline points="15 6 9 12 15 18" /></svg>;
-    case "search": return <svg {...P}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" /></svg>;
+    case "search": return <svg {...P}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>;
     case "plus": return <svg {...P}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
     case "minus": return <svg {...P}><line x1="5" y1="12" x2="19" y2="12" /></svg>;
     case "equal": return <svg {...P}><line x1="6" y1="9" x2="18" y2="9" /><line x1="6" y1="15" x2="18" y2="15" /></svg>;
     case "x": return <svg {...P}><line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" /></svg>;
-    case "user": return <svg {...P}><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6" /></svg>;
-    case "pencil": return <svg {...P}><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z" /></svg>;
-    case "trash": return <svg {...P}><polyline points="3 6 21 6" /><path d="M8 6V4h8v2" /><path d="M6 6l1 14h10l1-14" /></svg>;
+    case "user": return <svg {...P}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>;
+    case "pencil": return <svg {...P}><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>;
+    case "trash": return <svg {...P}><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>;
     case "check": return <svg {...P} strokeWidth={2.6}><polyline points="4.5 12.5 9.5 17.5 19.5 6.5" /></svg>;
-    case "camera": return <svg {...P}><path d="M4 8h3l2-3h6l2 3h3v12H4z" /><circle cx="12" cy="13" r="3.5" /></svg>;
+    case "camera": return <svg {...P}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></svg>;
     case "cal": return <svg {...P}><rect x="3" y="5" width="18" height="16" rx="3" /><line x1="3" y1="10" x2="21" y2="10" /><line x1="8" y1="3" x2="8" y2="7" /><line x1="16" y1="3" x2="16" y2="7" /></svg>;
-    case "bell": return <svg {...P}><path d="M6 8a6 6 0 0 1 12 0c0 7 2 8 2 8H4s2-1 2-8" /><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" /></svg>;
-    case "users": return <svg {...P}><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c1.2-3.2 4-4.8 6.5-4.8s5.3 1.6 6.5 4.8" /><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8" /><path d="M17.5 15.4c2 .6 3.5 2 4.2 4.6" /></svg>;
-    case "userplus": return <svg {...P}><circle cx="10" cy="8" r="4" /><path d="M2.5 21c1.3-3.8 4.6-5.5 7.5-5.5 1.2 0 2.4.3 3.5.8" /><line x1="19" y1="14" x2="19" y2="20" /><line x1="16" y1="17" x2="22" y2="17" /></svg>;
-    case "logout": return <svg {...P}><path d="M9 4H5v16h4" /><path d="M14 8l4 4-4 4" /><line x1="8" y1="12" x2="18" y2="12" /></svg>;
+    case "bell": return <svg {...P}><path d="M10.268 21a2 2 0 0 0 3.464 0" /><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" /></svg>;
+    case "users": return <svg {...P}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>;
+    case "userplus": return <svg {...P}><path d="M2 21a8 8 0 0 1 13.292-6" /><circle cx="10" cy="8" r="5" /><path d="M19 16v6" /><path d="M22 19h-6" /></svg>;
+    case "logout": return <svg {...P}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>;
     default: return null;
   }
 });
@@ -1944,7 +1944,7 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
         <div className="disclosure">
           <button className="disc-head" onClick={() => toggle("cats")} aria-expanded={open === "cats"}>
             <GrayIconBubble emoji="📊" />
-            <span className="disc-title">Editar categorías</span>
+            <span className="disc-title">Categorías</span>
             <span className={`chev ${open === "cats" ? "open" : ""}`}><Icon name="chevR" size={16} /></span>
           </button>
           {open === "cats" && (
@@ -1967,7 +1967,7 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
                     <button aria-label={`Cambiar emoji de ${c.name}`} onClick={() => { haptic(); setCatForm({ initial: c }); }}>
                       <EmojiBubble emoji={c.emoji} color={c.color} size={40} />
                     </button>
-                    <input className="f-input left" style={{ fontWeight: 600, fontSize: 15 }} defaultValue={c.name} maxLength={28}
+                    <input className="f-input left" style={{ fontWeight: 600, fontSize: 15, padding: 0, margin: 0, height: "auto", lineHeight: 1.3 }} defaultValue={c.name} maxLength={28}
                       aria-label={`Nombre de ${c.name}`}
                       onBlur={(e) => {
                         const v = e.target.value.trim();
@@ -1987,7 +1987,7 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
         <div className="disclosure">
           <button className="disc-head" onClick={() => toggle("lists")} aria-expanded={open === "lists"}>
             <GrayIconBubble emoji="📝" />
-            <span className="disc-title">Editar listas</span>
+            <span className="disc-title">Listas</span>
             <span className={`chev ${open === "lists" ? "open" : ""}`}><Icon name="chevR" size={16} /></span>
           </button>
           {open === "lists" && (
@@ -2018,8 +2018,9 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
                   }}>
                     <div className="f-row" style={{ padding: "11px 14px" }}>
                       <EmojiBubble emoji={isShared ? "👥" : "🤫"} color={isShared ? shareColor : privColor} size={40} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <input className="f-input left" style={{ fontWeight: 600, fontSize: 15, width: "100%" }} defaultValue={l.name} maxLength={28}
+                      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center", gap: 1 }}>
+                        <input className="f-input left" defaultValue={l.name} maxLength={28}
+                          style={{ fontWeight: 600, fontSize: 15, width: "100%", display: "block", padding: 0, margin: 0, height: "auto", lineHeight: 1.3 }}
                           aria-label={`Nombre de ${l.name}`}
                           onBlur={(e) => {
                             const v = e.target.value.trim();
@@ -2028,7 +2029,7 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
                           }}
                           onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }} />
                         {subParts.length > 0 && (
-                          <div style={{ fontSize: 11.5, color: "var(--txt2)", fontWeight: 700, marginTop: 2 }}>{subParts.join(" · ")}</div>
+                          <div style={{ fontSize: 11.5, color: "var(--txt2)", fontWeight: 700, lineHeight: 1.3 }}>{subParts.join(" · ")}</div>
                         )}
                       </div>
                       {isShared && (
@@ -2049,7 +2050,7 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
         <div className="disclosure">
           <button className="disc-head" onClick={() => toggle("rec")} aria-expanded={open === "rec"}>
             <GrayIconBubble emoji="🔁" />
-            <span className="disc-title">Editar transacciones recurrentes</span>
+            <span className="disc-title">Transacciones recurrentes</span>
             <span className={`chev ${open === "rec" ? "open" : ""}`}><Icon name="chevR" size={16} /></span>
           </button>
           {open === "rec" && (
