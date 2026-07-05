@@ -51,10 +51,8 @@ self.addEventListener("fetch", (e) => {
 self.addEventListener("push", (e) => {
   let msg = {};
   try { msg = e.data.json() || {}; } catch (err) {}
-  /* el mensaje principal va como título (sin encabezado "Finanzas") */
-  const title = msg.title || msg.body || "Tienes una notificación nueva";
-  e.waitUntil(self.registration.showNotification(title, {
-    body: msg.title ? (msg.body || "") : "",
+  e.waitUntil(self.registration.showNotification(msg.title || "Finanzas", {
+    body: msg.body || "Tienes una notificación nueva",
     icon: "./icons/icon-192.png",
     badge: "./icons/icon-192.png",
     data: { url: "./" },
