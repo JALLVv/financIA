@@ -738,6 +738,32 @@ function Segmented({ options, value, onChange, renderExtra, className }) {
   );
 }
 
+/* Bloqueo del scroll del fondo mientras hay una hoja o pantalla abierta:
+   evita que iOS desplace la app principal al abrir el teclado (la hoja
+   y el fondo quedan separados). */
+let bodyLockCount = 0, bodyLockY = 0;
+function lockBodyScroll() {
+  if (++bodyLockCount > 1) return;
+  bodyLockY = window.scrollY || 0;
+  const b = document.body;
+  b.style.position = "fixed";
+  b.style.top = `-${bodyLockY}px`;
+  b.style.left = "0";
+  b.style.right = "0";
+  b.style.width = "100%";
+}
+function unlockBodyScroll() {
+  if (--bodyLockCount > 0) return;
+  bodyLockCount = 0;
+  const b = document.body;
+  b.style.position = "";
+  b.style.top = "";
+  b.style.left = "";
+  b.style.right = "";
+  b.style.width = "";
+  window.scrollTo(0, bodyLockY);
+}
+
 /* Hoja modal estilo iOS con animación de cierre.
    Se eleva con el teclado (visualViewport) para que los campos no queden tapados. */
 function Sheet({ open, onClose, title, children, footer }) {
@@ -756,6 +782,11 @@ function Sheet({ open, onClose, title, children, footer }) {
       return () => clearTimeout(t);
     }
   }, [open]);
+  useEffect(() => {
+    if (!mounted) return;
+    lockBodyScroll();
+    return () => unlockBodyScroll();
+  }, [mounted]);
   useEffect(() => {
     if (!mounted || typeof window === "undefined" || !window.visualViewport) return;
     const vv = window.visualViewport;
@@ -836,6 +867,11 @@ function Overlay({ open, onClose, children }) {
       return () => clearTimeout(t);
     }
   }, [open]);
+  useEffect(() => {
+    if (!mounted) return;
+    lockBodyScroll();
+    return () => unlockBodyScroll();
+  }, [mounted]);
   if (!mounted) return null;
   return <div className={`overlay ${closing ? "closing" : ""}`}>{children({ requestClose: onClose })}</div>;
 }
