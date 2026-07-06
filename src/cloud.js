@@ -21,7 +21,7 @@ const mapCat = (c) => ({ id: c.id, listId: c.list_id, name: c.name, emoji: c.emo
 const mapTx = (t) => ({
   id: t.id, listId: t.list_id, categoryId: t.category_id, type: t.type,
   amount: Number(t.amount), description: t.description || "", date: t.date,
-  photo: t.photo || null, authorId: t.author, shared: true,
+  photo: t.photo || null, transferId: t.transfer_id || null, authorId: t.author, shared: true,
 });
 
 /* Carga todo el estado social del usuario (RLS filtra lo que no le toca). */
@@ -111,7 +111,8 @@ export const cloudApi = {
 
   addTransaction: (uid, p) => supabase.from("shared_transactions").insert({
     list_id: p.listId, category_id: p.categoryId, author: uid,
-    type: p.type, amount: p.amount, description: p.description, date: p.date, photo: p.photo || null,
+    type: p.type, amount: p.amount, description: p.description, date: p.date,
+    photo: p.photo || null, transfer_id: p.transferId || null,
   }),
   editTransaction: (id, p) => supabase.from("shared_transactions").update({
     category_id: p.categoryId, type: p.type, amount: p.amount, description: p.description, date: p.date, photo: p.photo || null,
