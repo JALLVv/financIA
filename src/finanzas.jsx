@@ -223,19 +223,20 @@ input::placeholder{color:var(--txt3);}
 
 /* descripción grande sin recuadro (mismo tamaño que el monto) */
 .desc-input{
-  width:100%; background:none; border:none; outline:none; text-align:center;
+  width:100%; background:none; border:none; outline:none; text-align:left;
   font-size:44px; font-weight:800; letter-spacing:-.04em; caret-color:var(--accent);
-  padding:6px 0 0; margin:0; min-width:0;
+  padding:6px 4px 0; margin:0; min-width:0;
 }
 .desc-input::placeholder{color:rgba(245,245,247,.22); font-weight:800;}
 
-/* interruptor de modo con bolita de color (aparece al escribir el monto) */
-.mode-seg{position:relative; display:flex; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:3px; max-width:232px; margin:12px auto 2px;}
-.mode-thumb{position:absolute; top:3px; bottom:3px; border-radius:13px; transition:transform .32s var(--ease-ios), background .25s;}
+/* fila del monto: interruptor pequeño a la izquierda + monto */
+.amount-row{display:flex; align-items:center; gap:10px; padding:4px 4px 2px;}
+.mode-seg{position:relative; display:flex; flex:none; width:126px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:2px;}
+.mode-thumb{position:absolute; top:2px; bottom:2px; border-radius:9px; transition:transform .32s var(--ease-ios), background .25s;}
 .mode-thumb.expense{background:var(--red);}
 .mode-thumb.income{background:var(--green);}
 .mode-thumb.transfer{background:#30B0C7;}
-.mode-btn{flex:1; position:relative; z-index:1; padding:8px 0; font-size:19px; font-weight:800; line-height:1.2; color:var(--txt2); border-radius:13px; transition:color .25s;}
+.mode-btn{flex:1; position:relative; z-index:1; padding:5px 0; font-size:14px; font-weight:800; line-height:1.2; color:var(--txt2); border-radius:9px; transition:color .25s;}
 .mode-btn.on{color:#fff;}
 
 /* categorías en chips horizontales */
@@ -1593,8 +1594,26 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
           </div>
         )}
 
-        {/* monto */}
-        <div className="amount-wrap" style={{ padding: "2px 0" }}>
+        {/* monto: interruptor de modos en pequeño a la izquierda (aparece al escribir) */}
+        <div className="amount-row">
+          {amount.trim() !== "" && (() => {
+            const modes = allowTransfer && !editing ? ["expense", "income", "transfer"] : ["expense", "income"];
+            const idx = Math.max(0, modes.indexOf(type));
+            const signs = { expense: "−", income: "+", transfer: "⇄" };
+            const labels = { expense: "Gasto", income: "Ingreso", transfer: "Transferencia" };
+            return (
+              <div className="mode-seg content-swap" role="tablist">
+                <div className={`mode-thumb ${type}`}
+                  style={{ width: `calc((100% - 4px) / ${modes.length})`, transform: `translateX(${idx * 100}%)` }} />
+                {modes.map((m) => (
+                  <button key={m} className={`mode-btn ${type === m ? "on" : ""}`} role="tab" aria-selected={type === m}
+                    aria-label={labels[m]} onClick={() => { haptic(); setType(m); }}>
+                    {signs[m]}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
           <span className="amount-cur" style={{ color: type === "income" ? "var(--green)" : isTransfer ? "#30B0C7" : "var(--txt3)" }}>$</span>
           <input
             className="amount-input" inputMode="decimal" placeholder="0" aria-label="Monto"
@@ -1606,26 +1625,6 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
             style={{ color: type === "expense" ? "var(--txt)" : type === "income" ? "var(--green)" : "#30B0C7", width: `${Math.max((amount || "0").length, 1) + 0.15}ch` }}
           />
         </div>
-
-        {/* modos de registro: aparecen al escribir un monto */}
-        {amount.trim() !== "" && (() => {
-          const modes = allowTransfer && !editing ? ["expense", "income", "transfer"] : ["expense", "income"];
-          const idx = Math.max(0, modes.indexOf(type));
-          const signs = { expense: "−", income: "+", transfer: "⇄" };
-          const labels = { expense: "Gasto", income: "Ingreso", transfer: "Transferencia" };
-          return (
-            <div className="mode-seg content-swap" role="tablist">
-              <div className={`mode-thumb ${type}`}
-                style={{ width: `calc((100% - 6px) / ${modes.length})`, transform: `translateX(${idx * 100}%)` }} />
-              {modes.map((m) => (
-                <button key={m} className={`mode-btn ${type === m ? "on" : ""}`} role="tab" aria-selected={type === m}
-                  aria-label={labels[m]} onClick={() => { haptic(); setType(m); }}>
-                  {signs[m]}
-                </button>
-              ))}
-            </div>
-          );
-        })()}
 
         {/* categorías en chips horizontales */}
         {!isTransfer && (
