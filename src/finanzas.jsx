@@ -218,6 +218,8 @@ input::placeholder{color:var(--txt3);}
 }
 .type-btn.exp.on{background:rgba(255,69,58,.14); color:var(--red); border-color:rgba(255,69,58,.4);}
 .type-btn.inc.on{background:rgba(50,215,75,.12); color:var(--green); border-color:rgba(50,215,75,.4);}
+.type-btn.tr.on{background:rgba(48,176,199,.14); color:#30B0C7; border-color:rgba(48,176,199,.4);}
+.form-pills{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; padding:2px 0 14px;}
 .cat-scroll{display:flex; gap:12px; overflow-x:auto; padding:6px 2px 10px; scrollbar-width:none;}
 .cat-scroll::-webkit-scrollbar{display:none;}
 .cat-pick{flex:none; width:66px; text-align:center; transition:transform .25s var(--spring);}
@@ -550,6 +552,7 @@ function defaultData() {
   return {
     version: 1,
     profile: { name: "", photo: null },
+    settings: { accumulate: true },
     activeListId: listId,
     lists: [{ id: listId, name: "Personal" }],
     categories: [
@@ -570,7 +573,10 @@ async function loadData() {
     const r = await window.storage.get(STORE_KEY);
     if (r && r.value) {
       const d = JSON.parse(r.value);
-      if (d && d.lists && d.lists.length) return d;
+      if (d && d.lists && d.lists.length) {
+        if (!d.settings) d.settings = { accumulate: true };
+        return d;
+      }
     }
   } catch (e) { /* clave inexistente */ }
   return defaultData();
@@ -1366,12 +1372,27 @@ function InviteSheet({ open, onClose, list, cloud }) {
 }
 
 /* ----------------------- Formulario de transacción ----------------------- */
-function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, onCreateCategory, sharedListIds }) {
+/* Pastilla con selector de fecha nativo */
+function DatePill({ value, onChange }) {
+  return (
+    <div className="dd">
+      <span className="dd-lab">Fecha</span>
+      <span className="dd-val">{fmtDate(value)}</span>
+      <Icon name="chevD" size={12} color="var(--txt3)" />
+      <input type="date" value={value} max="2100-12-31" aria-label="Fecha"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0 }}
+        onChange={(e) => e.target.value && onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, onCreateCategory, sharedListIds, allowTransfer }) {
   const editing = !!(initial && initial.id);
   const [type, setType] = useState("expense");
   const [amount, setAmount] = useState("");
   const [desc, setDesc] = useState("");
   const [listId, setListId] = useState(defaultListId);
+  const [toListId, setToListId] = useState(null);
   const [catId, setCatId] = useState(null);
   const [date, setDate] = useState(todayStr());
   const [freq, setFreq] = useState("none");
@@ -1385,6 +1406,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
       setAmount(initial ? String(initial.amount) : "");
       setDesc(initial ? initial.description : "");
       setListId(initial ? initial.listId : defaultListId);
+      setToListId(null);
       setCatId(initial ? initial.categoryId : null);
       setDate(initial ? initial.date : todayStr());
       setFreq(initial && initial.frequency ? initial.frequency : "none");
@@ -1403,17 +1425,27 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
   useEffect(() => {
     if (open && catId && !cats.some((c) => c.id === catId)) setCatId(null);
   }, [listId, open]); // al cambiar de lista, la categoría debe pertenecer a ella
+  useEffect(() => {
+    if (toListId && toListId === listId) setToListId(null);
+  }, [listId, toListId]);
 
+  const isTransfer = type === "transfer";
   const amt = parseFloat(String(amount).replace(",", "."));
-  const valid = !isNaN(amt) && amt > 0 && !!catId && !!date && !!listId;
   const list = data.lists.find((l) => l.id === listId);
+  const toList = toListId ? data.lists.find((l) => l.id === toListId) : null;
   const isSharedList = !!(sharedListIds && sharedListIds.has(listId));
+  const cSel = catId ? cats.find((c) => c.id === catId) : null;
+  const valid = !isNaN(amt) && amt > 0 && !!date && !!listId
+    && (isTransfer ? (!!toListId && toListId !== listId) : !!catId);
 
   const handleCreateCat = (payload) => {
     const res = onCreateCategory(listId, payload);
     if (res && typeof res.then === "function") res.then((c) => { if (c && c.id) setCatId(c.id); });
     else if (res && res.id) setCatId(res.id);
   };
+
+  const listLabel = (l) => (l.shared ? `${l.name} 👥` : l.name);
+  const otherLists = data.lists.filter((l) => l.id !== listId);
 
   return (
     <>
@@ -1422,14 +1454,70 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
           <button className="primary-btn" style={{ marginTop: 12 }} disabled={!valid}
             onClick={() => {
               haptic(16);
-              onSubmit({ type, amount: Math.round(amt * 100) / 100, description: desc.trim(), listId, categoryId: catId, date, frequency: isSharedList ? "none" : freq, photo });
+              onSubmit(isTransfer
+                ? { type: "transfer", amount: Math.round(amt * 100) / 100, listId, toListId, date, photo }
+                : { type, amount: Math.round(amt * 100) / 100, description: desc.trim(), listId, categoryId: catId, date, frequency: isSharedList ? "none" : freq, photo });
               onClose();
             }}>
-            {editing ? "Guardar cambios" : "Agregar movimiento"}
+            {editing ? "Guardar cambios" : isTransfer ? "Registrar transferencia" : "Agregar movimiento"}
           </button>
         }>
-        <div className="amount-wrap">
-          <span className="amount-cur" style={{ color: type === "income" ? "var(--green)" : "var(--txt3)" }}>$</span>
+        {/* tipo: gasto / ingreso / transferencia */}
+        <div className="type-toggle" role="tablist" style={{ maxWidth: allowTransfer && !editing ? 260 : 200 }}>
+          <button className={`type-btn exp ${type === "expense" ? "on" : ""}`} aria-label="Gasto" onClick={() => { haptic(); setType("expense"); }}>−</button>
+          <button className={`type-btn inc ${type === "income" ? "on" : ""}`} aria-label="Ingreso" onClick={() => { haptic(); setType("income"); }}>+</button>
+          {allowTransfer && !editing && (
+            <button className={`type-btn tr ${isTransfer ? "on" : ""}`} aria-label="Transferencia" onClick={() => { haptic(); setType("transfer"); }}>⇄</button>
+          )}
+        </div>
+
+        {/* todas las opciones como pastillas desplegables */}
+        <div className="form-pills">
+          {!isTransfer && (
+            <DropPill label="Categoría" value={catId || ""} display={cSel ? `${cSel.emoji} ${cSel.name}` : "Elegir"} active={!!cSel}
+              onChange={(v) => { if (v === "__new") setCatSheet(true); else if (v) setCatId(v); }}
+              options={[
+                ...(cSel ? [] : [{ id: "", label: "Elegir categoría" }]),
+                ...cats.map((c) => ({ id: c.id, label: `${c.emoji} ${c.name}` })),
+                { id: "__new", label: "➕ Nueva categoría" },
+              ]} />
+          )}
+          <DropPill label={isTransfer ? "Desde" : "Lista"} value={listId} display={list ? listLabel(list) : "—"} active={false}
+            onChange={setListId}
+            options={data.lists.map((l) => ({ id: l.id, label: listLabel(l) }))} />
+          {isTransfer && (
+            <DropPill label="Hacia" value={toListId || ""} display={toList ? listLabel(toList) : "Elegir"} active={!!toList}
+              onChange={(v) => { if (v) setToListId(v); }}
+              options={[
+                ...(toList ? [] : [{ id: "", label: "Elegir lista" }]),
+                ...otherLists.map((l) => ({ id: l.id, label: listLabel(l) })),
+              ]} />
+          )}
+          <DatePill value={date} onChange={setDate} />
+          {!isTransfer && !isSharedList && (
+            <DropPill label="Repetición" value={freq} display={freqLabel(freq)} active={freq !== "none"}
+              onChange={setFreq}
+              options={FREQS.map((f) => ({ id: f.id, label: f.label }))} />
+          )}
+        </div>
+
+        {/* descripción */}
+        {!isTransfer ? (
+          <div className="f-group" style={{ marginBottom: 10 }}>
+            <div className="f-row" style={{ padding: "11px 16px" }}>
+              <span className="f-label">Descripción</span>
+              <input className="f-input" value={desc} placeholder="Ej. Supermercado" maxLength={60} onChange={(e) => setDesc(e.target.value)} />
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: 12.5, color: "var(--txt2)", textAlign: "center", margin: "0 4px 10px", fontWeight: 600, lineHeight: 1.5 }}>
+            ⇄ Se registrará “hacia {toList ? toList.name : "…"}” en {list ? list.name : "…"} y “desde {list ? list.name : "…"}” en {toList ? toList.name : "…"}.
+          </div>
+        )}
+
+        {/* monto */}
+        <div className="amount-wrap" style={{ padding: "2px 0" }}>
+          <span className="amount-cur" style={{ color: type === "income" ? "var(--green)" : isTransfer ? "#30B0C7" : "var(--txt3)" }}>$</span>
           <input
             className="amount-input" inputMode="decimal" placeholder="0" aria-label="Monto"
             value={amount}
@@ -1437,31 +1525,24 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
               const v = e.target.value.replace(/[^0-9.,]/g, "");
               if ((v.match(/[.,]/g) || []).length <= 1) setAmount(v);
             }}
-            style={{ color: type === "expense" ? "var(--txt)" : "var(--green)", width: `${Math.max((amount || "0").length, 1) + 0.15}ch` }}
+            style={{ color: type === "expense" ? "var(--txt)" : type === "income" ? "var(--green)" : "#30B0C7", width: `${Math.max((amount || "0").length, 1) + 0.15}ch` }}
           />
         </div>
-        <div className="type-toggle" role="tablist">
-          <button className={`type-btn exp ${type === "expense" ? "on" : ""}`} aria-label="Gasto" onClick={() => { haptic(); setType("expense"); }}>−</button>
-          <button className={`type-btn inc ${type === "income" ? "on" : ""}`} aria-label="Ingreso" onClick={() => { haptic(); setType("income"); }}>+</button>
-        </div>
 
-        <div className="f-group">
-          <div className="f-row">
-            <span className="f-label">Descripción</span>
-            <input className="f-input" value={desc} placeholder="Ej. Supermercado" maxLength={60} onChange={(e) => setDesc(e.target.value)} />
-          </div>
-          <div className="f-row">
+        {/* foto */}
+        <div className="f-group" style={{ marginTop: 10 }}>
+          <div className="f-row" style={{ padding: "9px 16px" }}>
             <span className="f-label">Foto</span>
             {photo ? (
               <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
-                <img src={photo} alt="Foto adjunta" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover", border: "1px solid var(--line2)" }} />
+                <img src={photo} alt="Foto adjunta" style={{ width: 38, height: 38, borderRadius: 10, objectFit: "cover", border: "1px solid var(--line2)" }} />
                 <button className="mini-btn del" aria-label="Quitar foto" onClick={() => { haptic(); setPhoto(null); }}>
                   <Icon name="trash" size={14} />
                 </button>
               </div>
             ) : (
               <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
-                <button className="chip" style={{ padding: "7px 14px", gap: 7 }} onClick={() => { haptic(); photoRef.current && photoRef.current.click(); }}>
+                <button className="chip" style={{ padding: "6px 13px", gap: 7 }} onClick={() => { haptic(); photoRef.current && photoRef.current.click(); }}>
                   <Icon name="camera" size={15} /> Adjuntar
                 </button>
               </div>
@@ -1470,49 +1551,13 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
           </div>
         </div>
 
-        <div className="section-title">Categoría</div>
-        <div className="cat-scroll">
-          <button className="cat-pick" onClick={() => { haptic(); setCatSheet(true); }} aria-label="Crear categoría">
-            <div className="ebubble" style={{ width: 54, height: 54, margin: "0 auto", background: "var(--card2)", border: "1.5px dashed var(--line2)", color: "var(--accent)" }}>
-              <Icon name="plus" size={22} />
-            </div>
-            <div className="c-name">Nueva</div>
-          </button>
-          {cats.map((c) => (
-            <button key={c.id} className={`cat-pick ${catId === c.id ? "on" : ""}`} onClick={() => { haptic(); setCatId(c.id); }}>
-              <EmojiBubble emoji={c.emoji} color={c.color} size={54} />
-              <div className="c-name">{c.name}</div>
-            </button>
-          ))}
-        </div>
-
-        <div className="f-group" style={{ marginTop: 8 }}>
-          <div className="f-row">
-            <span className="f-label">Lista</span>
-            <select className="f-input" value={listId} onChange={(e) => { haptic(); setListId(e.target.value); }}>
-              {data.lists.map((l) => <option key={l.id} value={l.id}>{l.shared ? `${l.name} 👥` : l.name}</option>)}
-            </select>
-          </div>
-          <div className="f-row">
-            <span className="f-label">Fecha</span>
-            <input type="date" className="f-input" value={date} max="2100-12-31" onChange={(e) => e.target.value && setDate(e.target.value)} />
-          </div>
-          {!isSharedList && (
-            <div className="f-row">
-              <span className="f-label">Repetición</span>
-              <select className="f-input" value={freq} onChange={(e) => { haptic(); setFreq(e.target.value); }} disabled={editing && initial.recurringId}>
-                {FREQS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
-              </select>
-            </div>
-          )}
-        </div>
-        {isSharedList && (
-          <div style={{ fontSize: 12.5, color: "var(--txt2)", margin: "0 4px 8px", fontWeight: 600, lineHeight: 1.5 }}>
+        {isSharedList && !isTransfer && (
+          <div style={{ fontSize: 12.5, color: "var(--txt2)", margin: "8px 4px 0", fontWeight: 600, lineHeight: 1.5 }}>
             👥 Lista compartida: los demás miembros verán este movimiento al instante.
           </div>
         )}
-        {!isSharedList && freq !== "none" && !editing && (
-          <div style={{ fontSize: 12.5, color: "var(--txt2)", margin: "0 4px 8px", fontWeight: 600, lineHeight: 1.5 }}>
+        {!isSharedList && !isTransfer && freq !== "none" && !editing && (
+          <div style={{ fontSize: 12.5, color: "var(--txt2)", margin: "8px 4px 0", fontWeight: 600, lineHeight: 1.5 }}>
             🔁 Se creará automáticamente {freqLabel(freq).toLowerCase()} a partir del {fmtDate(date)}. Puedes gestionarlo desde tu perfil.
           </div>
         )}
@@ -1661,6 +1706,7 @@ function ListSheet({ open, onClose, data, onSelect, onCreate, canShare }) {
   }, [data.transactions]);
 
   return (
+    <>
     <Sheet open={open} onClose={onClose} title="Mis listas">
       <div className="f-group">
         {data.lists.map((l) => {
@@ -1683,9 +1729,10 @@ function ListSheet({ open, onClose, data, onSelect, onCreate, canShare }) {
         onClick={() => { haptic(); setFormOpen(true); }}>
         <Icon name="plus" size={17} /> Nueva lista
       </button>
-      <ListFormSheet open={formOpen} onClose={() => setFormOpen(false)} canShare={canShare}
-        onCreate={(v, shared) => { onCreate(v, shared); onClose(); }} />
     </Sheet>
+    <ListFormSheet open={formOpen} onClose={() => setFormOpen(false)} canShare={canShare}
+      onCreate={(v, shared) => { onCreate(v, shared); onClose(); }} />
+    </>
   );
 }
 
@@ -1862,6 +1909,7 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
   const privColor = useMemo(() => colorFromEmoji("🤫"), []);
   const shareColor = useMemo(() => colorFromEmoji("👥"), []);
   const bellColor = useMemo(() => colorFromEmoji("🔔"), []);
+  const accColor = useMemo(() => colorFromEmoji("⤵️"), []);
 
   useEffect(() => {
     let alive = true;
@@ -1996,6 +2044,17 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
             </div>
           </div>
         )}
+
+        {/* -------- Acumulado (interruptor) -------- */}
+        <div className="disclosure">
+          <div className="disc-head" style={{ cursor: "default" }}>
+            <EmojiBubble emoji="⤵️" color={accColor} size={40} fontSize={20} />
+            <span className="disc-title">Acumulado</span>
+            <Switch on={!data.settings || data.settings.accumulate !== false}
+              onToggle={() => actions.setSetting({ accumulate: !(!data.settings || data.settings.accumulate !== false) })}
+              label="Acumulado" />
+          </div>
+        </div>
 
         {/* -------- Categorías -------- */}
         <div className="disclosure">
@@ -2248,6 +2307,7 @@ export default function App() {
   /* ----------------- acciones ----------------- */
   const actions = useMemo(() => ({
     setProfile: (patch) => update((d) => ({ ...d, profile: { ...d.profile, ...patch } })),
+    setSetting: (patch) => update((d) => ({ ...d, settings: { ...d.settings, ...patch } })),
     setActiveList: (id) => update((d) => ({ ...d, activeListId: id })),
     createList: (name) => {
       const l = { id: uid(), name };
@@ -2384,6 +2444,35 @@ export default function App() {
     return { exp, inc, bal: inc - exp };
   }, [periodTxs]);
 
+  /* balance total: acumulado (todo el tiempo) o solo el mes en curso */
+  const accumulate = !data || !data.settings || data.settings.accumulate !== false;
+  const nowYm = todayStr().slice(0, 7);
+  const balanceTotal = useMemo(() => {
+    let s = 0;
+    for (const t of listTxs) {
+      if (!accumulate && t.date.slice(0, 7) !== nowYm) continue;
+      s += t.type === "income" ? t.amount : -t.amount;
+    }
+    return s;
+  }, [listTxs, accumulate, nowYm]);
+
+  /* transferencias entre listas: gasto en el origen + ingreso en el destino */
+  const ensureTransferCategory = async (lid) => {
+    const existing = viewData.categories.find((c) => c.listId === lid && c.name.trim().toLowerCase() === "transferencia");
+    if (existing) return existing;
+    return await routedActions.createCategory(lid, { name: "Transferencia", emoji: "🔁", color: colorFromEmoji("🔁") });
+  };
+  const addTransfer = async (p) => {
+    const fromList = listMap.get(p.listId), toList = listMap.get(p.toListId);
+    if (!fromList || !toList) return;
+    const catFrom = await ensureTransferCategory(p.listId);
+    const catTo = await ensureTransferCategory(p.toListId);
+    if (!catFrom || !catTo) { showToast("⚠️", "No se pudo registrar la transferencia"); return; }
+    await routedActions.addTransaction({ type: "expense", amount: p.amount, description: `hacia ${toList.name}`, listId: p.listId, categoryId: catFrom.id, date: p.date, frequency: "none", photo: p.photo });
+    await routedActions.addTransaction({ type: "income", amount: p.amount, description: `desde ${fromList.name}`, listId: p.toListId, categoryId: catTo.id, date: p.date, frequency: "none", photo: p.photo });
+    showToast("⇄", "Transferencia registrada");
+  };
+
   const chartGroups = useMemo(() => {
     const m = new Map();
     for (const t of periodTxs) {
@@ -2452,12 +2541,12 @@ export default function App() {
 
         {/* ---------- balance ---------- */}
         <section className="balance-wrap" aria-live="polite">
-          <div className="balance-label">Total</div>
+          <div className="balance-label">{accumulate ? "Total" : `Total · ${MONTHS[new Date().getMonth()]}`}</div>
           <div className="balance-row">
-            <span className={`sign-dot ${totals.bal > 0.004 ? "sign-pos" : totals.bal < -0.004 ? "sign-neg" : "sign-zero"}`}>
-              <Icon name={totals.bal > 0.004 ? "plus" : totals.bal < -0.004 ? "minus" : "equal"} size={15} color="#fff" stroke={3.2} />
+            <span className={`sign-dot ${balanceTotal > 0.004 ? "sign-pos" : balanceTotal < -0.004 ? "sign-neg" : "sign-zero"}`}>
+              <Icon name={balanceTotal > 0.004 ? "plus" : balanceTotal < -0.004 ? "minus" : "equal"} size={15} color="#fff" stroke={3.2} />
             </span>
-            <AnimatedNumber className="balance-num" value={Math.abs(totals.bal)} format={fmt} />
+            <AnimatedNumber className="balance-num" value={Math.abs(balanceTotal)} format={fmt} />
           </div>
 
           <Segmented className="mini"
@@ -2521,9 +2610,13 @@ export default function App() {
 
       {/* ---------- hojas ---------- */}
       <TxFormSheet
-        open={addOpen} onClose={() => setAddOpen(false)} data={viewData} defaultListId={viewData.activeListId} sharedListIds={sharedListIds}
+        open={addOpen} onClose={() => setAddOpen(false)} data={viewData} defaultListId={viewData.activeListId} sharedListIds={sharedListIds} allowTransfer
         onCreateCategory={(lid, p) => routedActions.createCategory(lid, p)}
-        onSubmit={(p) => { routedActions.addTransaction(p); showToast(p.type === "income" ? "💚" : "✅", p.frequency !== "none" ? "Recurrencia creada" : "Movimiento agregado"); }}
+        onSubmit={(p) => {
+          if (p.type === "transfer") { addTransfer(p); return; }
+          routedActions.addTransaction(p);
+          showToast(p.type === "income" ? "💚" : "✅", p.frequency !== "none" ? "Recurrencia creada" : "Movimiento agregado");
+        }}
       />
       <TxFormSheet
         open={!!editTx} onClose={() => setEditTx(null)} data={viewData} defaultListId={viewData.activeListId} initial={editTx} sharedListIds={sharedListIds}
