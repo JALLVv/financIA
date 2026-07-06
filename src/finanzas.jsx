@@ -744,8 +744,10 @@ function Sheet({ open, onClose, title, children, footer }) {
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
   const [kb, setKb] = useState(0);
+  const [needsPad, setNeedsPad] = useState(false);
   const [frozenH, setFrozenH] = useState(null);
   const sheetRef = useRef(null);
+  const kbRef = useRef(0);
   useEffect(() => {
     if (open) { setMounted(true); setClosing(false); }
     else if (mounted) {
@@ -777,20 +779,29 @@ function Sheet({ open, onClose, title, children, footer }) {
   /* la altura exterior de la hoja se congela mientras el teclado está abierto:
      el relleno interno no la agranda ni crea espacio vacío visible */
   useEffect(() => {
+    kbRef.current = kb;
     if (kb > 0) {
       setFrozenH((h) => (h == null && sheetRef.current ? sheetRef.current.offsetHeight : h));
-    } else setFrozenH(null);
+    } else { setFrozenH(null); setNeedsPad(false); }
   }, [kb]);
 
-  /* la hoja NO se mueve con el teclado (mover elementos fijos crea bucles de
-     rebote en iOS): el interior gana espacio inferior y el campo enfocado se
-     desplaza a la vista dentro del área con scroll */
+  /* la hoja NO se mueve con el teclado. El ajuste (relleno interno + scroll)
+     solo se activa si el campo enfocado queda realmente tapado por el teclado;
+     si ya es visible, no se toca nada (sin saltos ni espacios vacíos). */
   const onFocusCapture = (e) => {
     const t = e.target;
     if (!t || !/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
     setTimeout(() => {
-      try { t.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (err) {}
-    }, 350);
+      if (!kbRef.current || typeof window === "undefined") return;
+      const vv = window.visualViewport;
+      const visibleBottom = vv ? vv.offsetTop + vv.height - 8 : window.innerHeight - kbRef.current - 8;
+      if (t.getBoundingClientRect().bottom > visibleBottom) {
+        setNeedsPad(true);
+        requestAnimationFrame(() => {
+          try { t.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (err) {}
+        });
+      }
+    }, 400);
   };
 
   if (!mounted) return null;
@@ -806,7 +817,7 @@ function Sheet({ open, onClose, title, children, footer }) {
             <button className="sheet-close" onClick={onClose} aria-label="Cerrar"><Icon name="x" size={15} /></button>
           </div>
         )}
-        <div className="sheet-body" style={kb ? { paddingBottom: kb } : undefined}>{children}</div>
+        <div className="sheet-body" style={kb > 0 && needsPad ? { paddingBottom: kb } : undefined}>{children}</div>
         {footer}
       </div>
     </>
