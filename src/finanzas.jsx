@@ -746,22 +746,18 @@ let bodyLockCount = 0, bodyLockY = 0;
 function lockBodyScroll() {
   if (++bodyLockCount > 1) return;
   bodyLockY = window.scrollY || 0;
-  const b = document.body;
-  b.style.position = "fixed";
-  b.style.top = `-${bodyLockY}px`;
-  b.style.left = "0";
-  b.style.right = "0";
-  b.style.width = "100%";
+  /* overflow:hidden en la raíz: congela el fondo sin reposicionar nada
+     (position:fixed en body dejaba una franja negra al cerrar) */
+  document.documentElement.style.overflow = "hidden";
+  document.documentElement.style.overscrollBehavior = "none";
+  document.body.style.overflow = "hidden";
 }
 function unlockBodyScroll() {
   if (--bodyLockCount > 0) return;
   bodyLockCount = 0;
-  const b = document.body;
-  b.style.position = "";
-  b.style.top = "";
-  b.style.left = "";
-  b.style.right = "";
-  b.style.width = "";
+  document.documentElement.style.overflow = "";
+  document.documentElement.style.overscrollBehavior = "";
+  document.body.style.overflow = "";
   window.scrollTo(0, bodyLockY);
 }
 
