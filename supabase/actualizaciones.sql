@@ -79,3 +79,7 @@ drop trigger if exists on_friend_request_delete on public.friend_requests;
 create trigger on_friend_request_delete
   after delete on public.friend_requests
   for each row execute function public.cleanup_request_notifications();
+
+-- 2026-07-06: enlace entre los dos movimientos de una transferencia
+-- (al borrar uno se borra el otro desde la app)
+alter table public.shared_transactions add column if not exists transfer_id text;

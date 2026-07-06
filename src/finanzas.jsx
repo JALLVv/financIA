@@ -744,6 +744,8 @@ function Sheet({ open, onClose, title, children, footer }) {
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
   const [kb, setKb] = useState(0);
+  const [frozenH, setFrozenH] = useState(null);
+  const sheetRef = useRef(null);
   useEffect(() => {
     if (open) { setMounted(true); setClosing(false); }
     else if (mounted) {
@@ -772,6 +774,14 @@ function Sheet({ open, onClose, title, children, footer }) {
     };
   }, [mounted]);
 
+  /* la altura exterior de la hoja se congela mientras el teclado está abierto:
+     el relleno interno no la agranda ni crea espacio vacío visible */
+  useEffect(() => {
+    if (kb > 0) {
+      setFrozenH((h) => (h == null && sheetRef.current ? sheetRef.current.offsetHeight : h));
+    } else setFrozenH(null);
+  }, [kb]);
+
   /* la hoja NO se mueve con el teclado (mover elementos fijos crea bucles de
      rebote en iOS): el interior gana espacio inferior y el campo enfocado se
      desplaza a la vista dentro del área con scroll */
@@ -779,7 +789,7 @@ function Sheet({ open, onClose, title, children, footer }) {
     const t = e.target;
     if (!t || !/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
     setTimeout(() => {
-      try { t.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (err) {}
+      try { t.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (err) {}
     }, 350);
   };
 
@@ -787,7 +797,8 @@ function Sheet({ open, onClose, title, children, footer }) {
   return (
     <>
       <div className={`sheet-backdrop ${closing ? "closing" : ""}`} onClick={onClose} />
-      <div className={`sheet ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={title} onFocusCapture={onFocusCapture}>
+      <div ref={sheetRef} className={`sheet ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={title}
+        style={kb > 0 && frozenH ? { height: frozenH } : undefined} onFocusCapture={onFocusCapture}>
         <div className="grabber" />
         {title != null && (
           <div className="sheet-title-row">
@@ -1401,11 +1412,11 @@ function InviteSheet({ open, onClose, list, cloud }) {
 
 /* ----------------------- Formulario de transacción ----------------------- */
 /* Pastillas sin etiqueta: muestran solo la opción seleccionada */
-function BarePill({ value, display, options, onChange, aria }) {
+function BarePill({ value, display, options, onChange, aria, active }) {
   return (
-    <div className="dd">
-      <span className="dd-val" style={{ color: "var(--txt)" }}>{display}</span>
-      <Icon name="chevD" size={12} color="var(--txt3)" />
+    <div className={`dd ${active ? "on" : ""}`}>
+      <span className="dd-val" style={{ color: active ? "#FF8A6B" : "var(--txt)" }}>{display}</span>
+      <Icon name="chevD" size={12} color={active ? "#FF8A6B" : "var(--txt3)"} />
       <select value={value} aria-label={aria} onChange={(e) => { haptic(); onChange(e.target.value); }}>
         {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
       </select>
@@ -1798,19 +1809,6 @@ function ListSheet({ open, onClose, data, onSelect, onCreate, canShare }) {
 }
 
 /* ----------------------- Buscador ----------------------- */
-function DropPill({ label, value, display, options, onChange, active }) {
-  return (
-    <div className={`dd ${active ? "on" : ""}`}>
-      <span className="dd-lab">{label}</span>
-      <span className="dd-val">{display}</span>
-      <Icon name="chevD" size={12} color={active ? "#FF8A6B" : "var(--txt3)"} />
-      <select value={value} aria-label={label} onChange={(e) => { haptic(); onChange(e.target.value); }}>
-        {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-      </select>
-    </div>
-  );
-}
-
 function SearchScreen({ requestClose, data, onPressTx }) {
   const now = new Date();
   const [q, setQ] = useState("");
@@ -1898,18 +1896,17 @@ function SearchScreen({ requestClose, data, onPressTx }) {
       </div>
       <div className="overlay-body">
         <div className="search-filters">
-          <DropPill label="Tipo" value={type} display={typeLabels[type]} active={type !== "both"}
+          <BarePill value={type} display={typeLabels[type]} active={type !== "both"} aria="Tipo"
             onChange={setType}
             options={[{ id: "both", label: "Gastos e ingresos" }, { id: "expense", label: "Solo gastos" }, { id: "income", label: "Solo ingresos" }]} />
           <button className={`dd ${sPeriod.mode !== "all" ? "on" : ""}`} onClick={() => { haptic(); setPeriodOpen(true); }} aria-label="Filtrar por fecha">
-            <span className="dd-lab">Fecha</span>
-            <span className="dd-val">{periodLabel}</span>
+            <span className="dd-val" style={{ color: sPeriod.mode !== "all" ? "#FF8A6B" : "var(--txt)" }}>{periodLabel}</span>
             <Icon name="chevD" size={12} color={sPeriod.mode !== "all" ? "#FF8A6B" : "var(--txt3)"} />
           </button>
-          <DropPill label="Listas" value={listId} display={listLabel} active={listId !== "all"}
+          <BarePill value={listId} display={listLabel} active={listId !== "all"} aria="Listas"
             onChange={setListId}
             options={[{ id: "all", label: "Todas las listas" }, ...data.lists.map((l) => ({ id: l.id, label: l.name }))]} />
-          <DropPill label="Categorías" value={catId} display={catLabel} active={catId !== "all"}
+          <BarePill value={catId} display={catLabel} active={catId !== "all"} aria="Categorías"
             onChange={setCatId}
             options={[{ id: "all", label: "Todas las categorías" }, ...catGroups.map((g) => ({ id: g.rep.id, label: `${g.rep.emoji} ${g.rep.name}` }))]} />
         </div>
@@ -2407,7 +2404,7 @@ export default function App() {
         };
         return runRecurring({ ...d, recurring: [...d.recurring, rule] });
       }
-      const tx = { id: uid(), listId: p.listId, categoryId: p.categoryId, type: p.type, amount: p.amount, description: p.description, date: p.date, photo: p.photo || null };
+      const tx = { id: uid(), listId: p.listId, categoryId: p.categoryId, type: p.type, amount: p.amount, description: p.description, date: p.date, photo: p.photo || null, transferId: p.transferId || null };
       return { ...d, transactions: [...d.transactions, tx] };
     }),
     editTransaction: (id, p) => update((d) => ({
@@ -2460,8 +2457,18 @@ export default function App() {
       actions.deleteTransaction(id);
       return cloud.api.addTransaction(p);
     },
-    deleteTransaction: (id) => (sharedTxIds.has(id) ? cloud.api.deleteTransaction(id) : actions.deleteTransaction(id)),
-  }), [actions, cloud.api, cloud.uid, sharedListIds, sharedCatIds, sharedTxIds]);
+    deleteTransaction: (id) => {
+      /* si es parte de una transferencia, se eliminan ambos movimientos */
+      const tx = viewData ? viewData.transactions.find((t) => t.id === id) : null;
+      const targets = tx && tx.transferId
+        ? viewData.transactions.filter((t) => t.transferId === tx.transferId).map((t) => t.id)
+        : [id];
+      for (const tid of targets) {
+        if (sharedTxIds.has(tid)) cloud.api.deleteTransaction(tid);
+        else actions.deleteTransaction(tid);
+      }
+    },
+  }), [actions, cloud.api, cloud.uid, sharedListIds, sharedCatIds, sharedTxIds, viewData]);
 
   /* al iniciar sesión: reconciliar nombre y foto entre el perfil local y el de la nube */
   const syncedProfileRef = useRef(null);
@@ -2527,8 +2534,9 @@ export default function App() {
     const catFrom = await ensureTransferCategory(p.listId);
     const catTo = await ensureTransferCategory(p.toListId);
     if (!catFrom || !catTo) { showToast("⚠️", "No se pudo registrar la transferencia"); return; }
-    await routedActions.addTransaction({ type: "expense", amount: p.amount, description: `hacia ${toList.name}`, listId: p.listId, categoryId: catFrom.id, date: p.date, frequency: "none", photo: p.photo });
-    await routedActions.addTransaction({ type: "income", amount: p.amount, description: `desde ${fromList.name}`, listId: p.toListId, categoryId: catTo.id, date: p.date, frequency: "none", photo: p.photo });
+    const transferId = uid(); // enlaza ambos movimientos: al borrar uno se borra el otro
+    await routedActions.addTransaction({ type: "expense", amount: p.amount, description: `hacia ${toList.name}`, listId: p.listId, categoryId: catFrom.id, date: p.date, frequency: "none", photo: p.photo, transferId });
+    await routedActions.addTransaction({ type: "income", amount: p.amount, description: `desde ${fromList.name}`, listId: p.toListId, categoryId: catTo.id, date: p.date, frequency: "none", photo: p.photo, transferId });
     showToast("⇄", "Transferencia registrada");
   };
 
