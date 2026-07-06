@@ -219,7 +219,35 @@ input::placeholder{color:var(--txt3);}
 .type-btn.exp.on{background:rgba(255,69,58,.14); color:var(--red); border-color:rgba(255,69,58,.4);}
 .type-btn.inc.on{background:rgba(50,215,75,.12); color:var(--green); border-color:rgba(50,215,75,.4);}
 .type-btn.tr.on{background:rgba(48,176,199,.14); color:#30B0C7; border-color:rgba(48,176,199,.4);}
-.form-pills{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; padding:2px 0 14px;}
+.form-pills{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; padding:2px 0 10px;}
+
+/* descripción grande sin recuadro (mismo tamaño que el monto) */
+.desc-input{
+  width:100%; background:none; border:none; outline:none; text-align:center;
+  font-size:44px; font-weight:800; letter-spacing:-.04em; caret-color:var(--accent);
+  padding:6px 0 0; margin:0; min-width:0;
+}
+.desc-input::placeholder{color:rgba(245,245,247,.22); font-weight:800;}
+
+/* interruptor de modo con bolita de color (aparece al escribir el monto) */
+.mode-seg{position:relative; display:flex; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:3px; max-width:232px; margin:12px auto 2px;}
+.mode-thumb{position:absolute; top:3px; bottom:3px; border-radius:13px; transition:transform .32s var(--ease-ios), background .25s;}
+.mode-thumb.expense{background:var(--red);}
+.mode-thumb.income{background:var(--green);}
+.mode-thumb.transfer{background:#30B0C7;}
+.mode-btn{flex:1; position:relative; z-index:1; padding:8px 0; font-size:19px; font-weight:800; line-height:1.2; color:var(--txt2); border-radius:13px; transition:color .25s;}
+.mode-btn.on{color:#fff;}
+
+/* categorías en chips horizontales */
+.cat-chips{display:flex; gap:8px; overflow-x:auto; padding:14px 2px 6px; scrollbar-width:none;}
+.cat-chips::-webkit-scrollbar{display:none;}
+.cat-chip{
+  flex:none; display:flex; align-items:center; gap:6px; padding:9px 15px; border-radius:19px;
+  background:var(--card); border:1px solid var(--line); font-size:14px; font-weight:700; color:var(--txt2);
+  transition:all .25s var(--ease-ios); white-space:nowrap;
+}
+.cat-chip.on{background:var(--accent-soft); border-color:rgba(245,73,39,.45); color:#FF8A6B;}
+.cat-chip:active{transform:scale(.95);}
 .cat-scroll{display:flex; gap:12px; overflow-x:auto; padding:6px 2px 10px; scrollbar-width:none;}
 .cat-scroll::-webkit-scrollbar{display:none;}
 .cat-pick{flex:none; width:66px; text-align:center; transition:transform .25s var(--spring);}
@@ -1372,12 +1400,23 @@ function InviteSheet({ open, onClose, list, cloud }) {
 }
 
 /* ----------------------- Formulario de transacción ----------------------- */
-/* Pastilla con selector de fecha nativo */
+/* Pastillas sin etiqueta: muestran solo la opción seleccionada */
+function BarePill({ value, display, options, onChange, aria }) {
+  return (
+    <div className="dd">
+      <span className="dd-val" style={{ color: "var(--txt)" }}>{display}</span>
+      <Icon name="chevD" size={12} color="var(--txt3)" />
+      <select value={value} aria-label={aria} onChange={(e) => { haptic(); onChange(e.target.value); }}>
+        {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+}
+
 function DatePill({ value, onChange }) {
   return (
     <div className="dd">
-      <span className="dd-lab">Fecha</span>
-      <span className="dd-val">{fmtDate(value)}</span>
+      <span className="dd-val" style={{ color: "var(--txt)" }}>{value === todayStr() ? "Hoy" : fmtDate(value)}</span>
       <Icon name="chevD" size={12} color="var(--txt3)" />
       <input type="date" value={value} max="2100-12-31" aria-label="Fecha"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0 }}
@@ -1398,6 +1437,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
   const [freq, setFreq] = useState("none");
   const [photo, setPhoto] = useState(null);
   const [catSheet, setCatSheet] = useState(false);
+  const [catExpanded, setCatExpanded] = useState(true);
   const photoRef = useRef(null);
 
   useEffect(() => {
@@ -1411,6 +1451,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
       setDate(initial ? initial.date : todayStr());
       setFreq(initial && initial.frequency ? initial.frequency : "none");
       setPhoto(initial ? initial.photo || null : null);
+      setCatExpanded(!(initial && initial.categoryId));
     }
   }, [open, initial, defaultListId]);
 
@@ -1423,7 +1464,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
 
   const cats = useMemo(() => data.categories.filter((c) => c.listId === listId), [data.categories, listId]);
   useEffect(() => {
-    if (open && catId && !cats.some((c) => c.id === catId)) setCatId(null);
+    if (open && catId && !cats.some((c) => c.id === catId)) { setCatId(null); setCatExpanded(true); }
   }, [listId, open]); // al cambiar de lista, la categoría debe pertenecer a ella
   useEffect(() => {
     if (toListId && toListId === listId) setToListId(null);
@@ -1440,8 +1481,9 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
 
   const handleCreateCat = (payload) => {
     const res = onCreateCategory(listId, payload);
-    if (res && typeof res.then === "function") res.then((c) => { if (c && c.id) setCatId(c.id); });
-    else if (res && res.id) setCatId(res.id);
+    const pick = (c) => { if (c && c.id) { setCatId(c.id); setCatExpanded(false); } };
+    if (res && typeof res.then === "function") res.then(pick);
+    else pick(res);
   };
 
   const listLabel = (l) => (l.shared ? `${l.name} 👥` : l.name);
@@ -1462,55 +1504,33 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
             {editing ? "Guardar cambios" : isTransfer ? "Registrar transferencia" : "Agregar movimiento"}
           </button>
         }>
-        {/* tipo: gasto / ingreso / transferencia */}
-        <div className="type-toggle" role="tablist" style={{ maxWidth: allowTransfer && !editing ? 260 : 200 }}>
-          <button className={`type-btn exp ${type === "expense" ? "on" : ""}`} aria-label="Gasto" onClick={() => { haptic(); setType("expense"); }}>−</button>
-          <button className={`type-btn inc ${type === "income" ? "on" : ""}`} aria-label="Ingreso" onClick={() => { haptic(); setType("income"); }}>+</button>
-          {allowTransfer && !editing && (
-            <button className={`type-btn tr ${isTransfer ? "on" : ""}`} aria-label="Transferencia" onClick={() => { haptic(); setType("transfer"); }}>⇄</button>
-          )}
-        </div>
-
-        {/* todas las opciones como pastillas desplegables */}
+        {/* línea superior: solo la opción elegida, sin etiquetas */}
         <div className="form-pills">
-          {!isTransfer && (
-            <DropPill label="Categoría" value={catId || ""} display={cSel ? `${cSel.emoji} ${cSel.name}` : "Elegir"} active={!!cSel}
-              onChange={(v) => { if (v === "__new") setCatSheet(true); else if (v) setCatId(v); }}
-              options={[
-                ...(cSel ? [] : [{ id: "", label: "Elegir categoría" }]),
-                ...cats.map((c) => ({ id: c.id, label: `${c.emoji} ${c.name}` })),
-                { id: "__new", label: "➕ Nueva categoría" },
-              ]} />
-          )}
-          <DropPill label={isTransfer ? "Desde" : "Lista"} value={listId} display={list ? listLabel(list) : "—"} active={false}
+          <BarePill value={listId} display={list ? listLabel(list) : "—"} aria={isTransfer ? "Lista de origen" : "Lista"}
             onChange={setListId}
             options={data.lists.map((l) => ({ id: l.id, label: listLabel(l) }))} />
           {isTransfer && (
-            <DropPill label="Hacia" value={toListId || ""} display={toList ? listLabel(toList) : "Elegir"} active={!!toList}
+            <BarePill value={toListId || ""} display={toList ? `→ ${listLabel(toList)}` : "→ Elegir"} aria="Lista de destino"
               onChange={(v) => { if (v) setToListId(v); }}
               options={[
-                ...(toList ? [] : [{ id: "", label: "Elegir lista" }]),
-                ...otherLists.map((l) => ({ id: l.id, label: listLabel(l) })),
+                ...(toList ? [] : [{ id: "", label: "→ Elegir lista" }]),
+                ...otherLists.map((l) => ({ id: l.id, label: `→ ${listLabel(l)}` })),
               ]} />
           )}
           <DatePill value={date} onChange={setDate} />
           {!isTransfer && !isSharedList && (
-            <DropPill label="Repetición" value={freq} display={freqLabel(freq)} active={freq !== "none"}
+            <BarePill value={freq} display={freqLabel(freq)} aria="Repetición"
               onChange={setFreq}
               options={FREQS.map((f) => ({ id: f.id, label: f.label }))} />
           )}
         </div>
 
-        {/* descripción */}
+        {/* descripción grande, sin recuadro */}
         {!isTransfer ? (
-          <div className="f-group" style={{ marginBottom: 10 }}>
-            <div className="f-row" style={{ padding: "11px 16px" }}>
-              <span className="f-label">Descripción</span>
-              <input className="f-input" value={desc} placeholder="Ej. Supermercado" maxLength={60} onChange={(e) => setDesc(e.target.value)} />
-            </div>
-          </div>
+          <input className="desc-input" value={desc} placeholder="Descripción" maxLength={60}
+            aria-label="Descripción" onChange={(e) => setDesc(e.target.value)} />
         ) : (
-          <div style={{ fontSize: 12.5, color: "var(--txt2)", textAlign: "center", margin: "0 4px 10px", fontWeight: 600, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12.5, color: "var(--txt2)", textAlign: "center", margin: "6px 4px 2px", fontWeight: 600, lineHeight: 1.5 }}>
             ⇄ Se registrará “hacia {toList ? toList.name : "…"}” en {list ? list.name : "…"} y “desde {list ? list.name : "…"}” en {toList ? toList.name : "…"}.
           </div>
         )}
@@ -1528,6 +1548,47 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
             style={{ color: type === "expense" ? "var(--txt)" : type === "income" ? "var(--green)" : "#30B0C7", width: `${Math.max((amount || "0").length, 1) + 0.15}ch` }}
           />
         </div>
+
+        {/* modos de registro: aparecen al escribir un monto */}
+        {amount.trim() !== "" && (() => {
+          const modes = allowTransfer && !editing ? ["expense", "income", "transfer"] : ["expense", "income"];
+          const idx = Math.max(0, modes.indexOf(type));
+          const signs = { expense: "−", income: "+", transfer: "⇄" };
+          const labels = { expense: "Gasto", income: "Ingreso", transfer: "Transferencia" };
+          return (
+            <div className="mode-seg content-swap" role="tablist">
+              <div className={`mode-thumb ${type}`}
+                style={{ width: `calc((100% - 6px) / ${modes.length})`, transform: `translateX(${idx * 100}%)` }} />
+              {modes.map((m) => (
+                <button key={m} className={`mode-btn ${type === m ? "on" : ""}`} role="tab" aria-selected={type === m}
+                  aria-label={labels[m]} onClick={() => { haptic(); setType(m); }}>
+                  {signs[m]}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* categorías en chips horizontales */}
+        {!isTransfer && (
+          <div className="cat-chips">
+            {(catExpanded || !cSel) && (
+              <button className="cat-chip" aria-label="Crear categoría" onClick={() => { haptic(); setCatSheet(true); }}>
+                <Icon name="plus" size={14} /> Nueva
+              </button>
+            )}
+            {cats.filter((c) => catExpanded || !cSel || c.id === catId).map((c) => (
+              <button key={c.id} className={`cat-chip ${catId === c.id ? "on" : ""}`}
+                onClick={() => {
+                  haptic();
+                  if (catId === c.id) setCatExpanded((e) => !e);
+                  else { setCatId(c.id); setCatExpanded(false); }
+                }}>
+                {c.emoji} {c.name}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* foto */}
         <div className="f-group" style={{ marginTop: 10 }}>
@@ -2444,17 +2505,15 @@ export default function App() {
     return { exp, inc, bal: inc - exp };
   }, [periodTxs]);
 
-  /* balance total: acumulado (todo el tiempo) o solo el mes en curso */
+  /* Acumulado: activado → período "Todo el tiempo"; desactivado → mes actual */
   const accumulate = !data || !data.settings || data.settings.accumulate !== false;
-  const nowYm = todayStr().slice(0, 7);
-  const balanceTotal = useMemo(() => {
-    let s = 0;
-    for (const t of listTxs) {
-      if (!accumulate && t.date.slice(0, 7) !== nowYm) continue;
-      s += t.type === "income" ? t.amount : -t.amount;
-    }
-    return s;
-  }, [listTxs, accumulate, nowYm]);
+  useEffect(() => {
+    if (!data) return;
+    const n = new Date();
+    setPeriod(accumulate
+      ? { mode: "all", year: n.getFullYear(), month: n.getMonth() + 1 }
+      : { mode: "month", year: n.getFullYear(), month: n.getMonth() + 1 });
+  }, [accumulate, !!data]);
 
   /* transferencias entre listas: gasto en el origen + ingreso en el destino */
   const ensureTransferCategory = async (lid) => {
@@ -2498,6 +2557,7 @@ export default function App() {
 
   const periodLabel = period.mode === "all" ? "Todo el tiempo"
     : period.mode === "year" ? String(period.year)
+    : (period.year === now.getFullYear() && period.month === now.getMonth() + 1) ? "Mes actual"
     : `${MONTHS[period.month - 1]} ${period.year}`;
 
   const animKey = data ? `${data.activeListId}|${period.mode}|${period.year}|${period.month}|${txType}|${selectedBar || ""}` : "";
@@ -2541,12 +2601,12 @@ export default function App() {
 
         {/* ---------- balance ---------- */}
         <section className="balance-wrap" aria-live="polite">
-          <div className="balance-label">{accumulate ? "Total" : `Total · ${MONTHS[new Date().getMonth()]}`}</div>
+          <div className="balance-label">Total</div>
           <div className="balance-row">
-            <span className={`sign-dot ${balanceTotal > 0.004 ? "sign-pos" : balanceTotal < -0.004 ? "sign-neg" : "sign-zero"}`}>
-              <Icon name={balanceTotal > 0.004 ? "plus" : balanceTotal < -0.004 ? "minus" : "equal"} size={15} color="#fff" stroke={3.2} />
+            <span className={`sign-dot ${totals.bal > 0.004 ? "sign-pos" : totals.bal < -0.004 ? "sign-neg" : "sign-zero"}`}>
+              <Icon name={totals.bal > 0.004 ? "plus" : totals.bal < -0.004 ? "minus" : "equal"} size={15} color="#fff" stroke={3.2} />
             </span>
-            <AnimatedNumber className="balance-num" value={Math.abs(balanceTotal)} format={fmt} />
+            <AnimatedNumber className="balance-num" value={Math.abs(totals.bal)} format={fmt} />
           </div>
 
           <Segmented className="mini"
