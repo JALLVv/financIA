@@ -219,7 +219,9 @@ input::placeholder{color:var(--txt3);}
 .type-btn.exp.on{background:rgba(255,69,58,.14); color:var(--red); border-color:rgba(255,69,58,.4);}
 .type-btn.inc.on{background:rgba(50,215,75,.12); color:var(--green); border-color:rgba(50,215,75,.4);}
 .type-btn.tr.on{background:rgba(48,176,199,.14); color:#30B0C7; border-color:rgba(48,176,199,.4);}
-.form-pills{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; padding:2px 0 10px;}
+.form-pills{display:flex; flex-wrap:nowrap; gap:8px; overflow-x:auto; padding:2px 2px 10px; scrollbar-width:none;}
+.form-pills::-webkit-scrollbar{display:none;}
+.form-pills .dd{flex:none;}
 
 /* descripción grande sin recuadro (mismo tamaño que el monto) */
 .desc-input{
@@ -659,9 +661,12 @@ function runRecurring(data) {
     return cat;
   };
   const listName = (id) => { const l = data.lists.find((x) => x.id === id); return l ? l.name : "—"; };
+  const isLocalList = (id) => data.lists.some((l) => l.id === id);
   const existing = new Set(data.transactions.filter((t) => t.recurringId).map((t) => t.recurringId + "|" + t.date));
   const newTx = [];
   const rules = data.recurring.map((r) => {
+    /* las reglas que tocan listas compartidas las genera la sincronización con la nube */
+    if (!isLocalList(r.listId) || (r.type === "transfer" && r.toListId && !isLocalList(r.toListId))) return r;
     let next = r.nextDate || r.startDate;
     const anchor = parseD(r.startDate).getDate();
     let guard = 0;
@@ -673,14 +678,15 @@ function runRecurring(data) {
           const catFrom = ensureTransferCat(r.listId);
           const catTo = ensureTransferCat(r.toListId);
           const tId = uid();
+          const pre = r.description ? r.description + " · " : "";
           newTx.push({
             id: uid(), listId: r.listId, categoryId: catFrom.id, type: "expense",
-            amount: r.amount, description: `hacia ${listName(r.toListId)}`, date: next,
+            amount: r.amount, description: `${pre}hacia ${listName(r.toListId)}`, date: next,
             recurringId: r.id, transferId: tId,
           });
           newTx.push({
             id: uid(), listId: r.toListId, categoryId: catTo.id, type: "income",
-            amount: r.amount, description: `desde ${listName(r.listId)}`, date: next,
+            amount: r.amount, description: `${pre}desde ${listName(r.listId)}`, date: next,
             recurringId: r.id, transferId: tId,
           });
         } else {
@@ -1540,10 +1546,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
   const amt = parseFloat(String(amount).replace(",", "."));
   const list = data.lists.find((l) => l.id === listId);
   const toList = toListId ? data.lists.find((l) => l.id === toListId) : null;
-  const isSharedList = !!(sharedListIds && sharedListIds.has(listId));
-  const toIsShared = !!(sharedListIds && toListId && sharedListIds.has(toListId));
-  /* la repetición vive en este dispositivo: solo entre listas privadas */
-  const canRepeat = isTransfer ? (!isSharedList && !toIsShared) : !isSharedList;
+  const canRepeat = !(editing && initial && initial.recurringId);
   const cSel = catId ? cats.find((c) => c.id === catId) : null;
   const valid = !isNaN(amt) && amt > 0 && !!date && !!listId
     && (isTransfer ? (!!toListId && toListId !== listId) : !!catId);
@@ -1555,7 +1558,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
     else pick(res);
   };
 
-  const listLabel = (l) => (l.shared ? `${l.name} 👥` : l.name);
+  const listLabel = (l) => l.name;
   const otherLists = data.lists.filter((l) => l.id !== listId);
 
   return (
@@ -1566,8 +1569,8 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
             onClick={() => {
               haptic(16);
               onSubmit(isTransfer
-                ? { type: "transfer", amount: Math.round(amt * 100) / 100, listId, toListId, date, photo, frequency: canRepeat ? freq : "none" }
-                : { type, amount: Math.round(amt * 100) / 100, description: desc.trim(), listId, categoryId: catId, date, frequency: isSharedList ? "none" : freq, photo });
+                ? { type: "transfer", amount: Math.round(amt * 100) / 100, description: desc.trim(), listId, toListId, date, photo, frequency: canRepeat ? freq : "none" }
+                : { type, amount: Math.round(amt * 100) / 100, description: desc.trim(), listId, categoryId: catId, date, frequency: canRepeat ? freq : "none", photo });
               onClose();
             }}>
             {editing ? "Guardar cambios" : isTransfer ? "Registrar transferencia" : "Agregar movimiento"}
@@ -1595,14 +1598,8 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
         </div>
 
         {/* descripción grande, sin recuadro */}
-        {!isTransfer ? (
-          <input className="desc-input" value={desc} placeholder="Descripción" maxLength={60}
-            aria-label="Descripción" onChange={(e) => setDesc(e.target.value)} />
-        ) : (
-          <div style={{ fontSize: 12.5, color: "var(--txt2)", textAlign: "center", margin: "6px 4px 2px", fontWeight: 600, lineHeight: 1.5 }}>
-            ⇄ Se registrará “hacia {toList ? toList.name : "…"}” en {list ? list.name : "…"} y “desde {list ? list.name : "…"}” en {toList ? toList.name : "…"}.
-          </div>
-        )}
+        <input className="desc-input" value={desc} placeholder="Descripción" maxLength={60}
+          aria-label="Descripción" onChange={(e) => setDesc(e.target.value)} />
 
         {/* monto: interruptor de modos en pequeño a la izquierda (aparece al escribir) */}
         <div className="amount-row">
@@ -1679,12 +1676,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
           </div>
         </div>
 
-        {isSharedList && !isTransfer && (
-          <div style={{ fontSize: 12.5, color: "var(--txt2)", margin: "8px 4px 0", fontWeight: 600, lineHeight: 1.5 }}>
-            👥 Lista compartida: los demás miembros verán este movimiento al instante.
-          </div>
-        )}
-        {!isSharedList && !isTransfer && freq !== "none" && !editing && (
+        {freq !== "none" && !editing && (
           <div style={{ fontSize: 12.5, color: "var(--txt2)", margin: "8px 4px 0", fontWeight: 600, lineHeight: 1.5 }}>
             🔁 Se creará automáticamente {freqLabel(freq).toLowerCase()} a partir del {fmtDate(date)}. Puedes gestionarlo desde tu perfil.
           </div>
@@ -2488,8 +2480,12 @@ export default function App() {
       ...d,
       recurring: [...d.recurring, {
         id: uid(), type: "transfer", listId: p.listId, toListId: p.toListId,
-        amount: p.amount, frequency: p.frequency, startDate: p.date, nextDate: p.date,
+        amount: p.amount, description: p.description || "", frequency: p.frequency, startDate: p.date, nextDate: p.date,
       }],
+    })),
+    setRecurringNext: (id, nextDate) => update((d) => ({
+      ...d,
+      recurring: d.recurring.map((r) => (r.id === id ? { ...r, nextDate } : r)),
     })),
   }), [update]);
 
@@ -2518,7 +2514,12 @@ export default function App() {
     deleteCategory: (id) => (sharedCatIds.has(id) ? cloud.api.deleteCategory(id) : actions.deleteCategory(id)),
     renameList: (id, name) => (sharedListIds.has(id) ? cloud.api.renameSharedList(id, name) : actions.renameList(id, name)),
     deleteList: (id) => (sharedListIds.has(id) ? cloud.api.leaveSharedList(id) : actions.deleteList(id)),
-    addTransaction: (p) => (sharedListIds.has(p.listId) ? cloud.api.addTransaction(p) : actions.addTransaction(p)),
+    addTransaction: (p) => {
+      /* con repetición: la regla vive en este dispositivo (evita duplicados
+         entre miembros); el generador correspondiente crea las instancias */
+      if (p.frequency && p.frequency !== "none") return actions.addTransaction(p);
+      return sharedListIds.has(p.listId) ? cloud.api.addTransaction(p) : actions.addTransaction(p);
+    },
     editTransaction: (id, p) => {
       const was = sharedTxIds.has(id), now = sharedListIds.has(p.listId);
       if (was && now) return cloud.api.editTransaction(id, p);
@@ -2605,10 +2606,57 @@ export default function App() {
     const catTo = await ensureTransferCategory(p.toListId);
     if (!catFrom || !catTo) { showToast("⚠️", "No se pudo registrar la transferencia"); return; }
     const transferId = uid(); // enlaza ambos movimientos: al borrar uno se borra el otro
-    await routedActions.addTransaction({ type: "expense", amount: p.amount, description: `hacia ${toList.name}`, listId: p.listId, categoryId: catFrom.id, date: p.date, frequency: "none", photo: p.photo, transferId });
-    await routedActions.addTransaction({ type: "income", amount: p.amount, description: `desde ${fromList.name}`, listId: p.toListId, categoryId: catTo.id, date: p.date, frequency: "none", photo: p.photo, transferId });
+    const pre = p.description ? p.description + " · " : "";
+    await routedActions.addTransaction({ type: "expense", amount: p.amount, description: `${pre}hacia ${toList.name}`, listId: p.listId, categoryId: catFrom.id, date: p.date, frequency: "none", photo: p.photo, transferId });
+    await routedActions.addTransaction({ type: "income", amount: p.amount, description: `${pre}desde ${fromList.name}`, listId: p.toListId, categoryId: catTo.id, date: p.date, frequency: "none", photo: p.photo, transferId });
     showToast("⇄", "Transferencia registrada");
   };
+
+  /* recurrencias que involucran listas compartidas: las genera este efecto
+     (solo el dispositivo dueño de la regla, para no duplicar entre miembros) */
+  const sharedRecurringBusy = useRef(false);
+  useEffect(() => {
+    if (!data || !viewData || sharedRecurringBusy.current) return;
+    const isLocal = (id) => data.lists.some((l) => l.id === id);
+    const today = todayStr();
+    const due = data.recurring.filter((r) => {
+      const shared = !isLocal(r.listId) || (r.type === "transfer" && r.toListId && !isLocal(r.toListId));
+      const next = r.nextDate || r.startDate;
+      return shared && next && next <= today;
+    });
+    if (!due.length) return;
+    /* esperar a que las listas compartidas estén cargadas */
+    const ready = (id) => isLocal(id) || sharedListIds.has(id);
+    if (!due.every((r) => ready(r.listId) && (!r.toListId || ready(r.toListId)))) return;
+    sharedRecurringBusy.current = true;
+    (async () => {
+      try {
+        for (const r of due) {
+          let next = r.nextDate || r.startDate;
+          const anchor = parseD(r.startDate).getDate();
+          let guard = 0;
+          while (next && next <= today && guard < 500) {
+            if (r.type === "transfer" && r.toListId) {
+              const fromList = listMap.get(r.listId), toList = listMap.get(r.toListId);
+              if (!fromList || !toList) break;
+              const catFrom = await ensureTransferCategory(r.listId);
+              const catTo = await ensureTransferCategory(r.toListId);
+              if (!catFrom || !catTo) break;
+              const pre = r.description ? r.description + " · " : "";
+              const tId = uid();
+              await routedActions.addTransaction({ type: "expense", amount: r.amount, description: `${pre}hacia ${toList.name}`, listId: r.listId, categoryId: catFrom.id, date: next, frequency: "none", transferId: tId });
+              await routedActions.addTransaction({ type: "income", amount: r.amount, description: `${pre}desde ${fromList.name}`, listId: r.toListId, categoryId: catTo.id, date: next, frequency: "none", transferId: tId });
+            } else {
+              await routedActions.addTransaction({ type: r.type, amount: r.amount, description: r.description, listId: r.listId, categoryId: r.categoryId, date: next, frequency: "none" });
+            }
+            next = advance(next, r.frequency, anchor);
+            actions.setRecurringNext(r.id, next);
+            guard++;
+          }
+        }
+      } finally { sharedRecurringBusy.current = false; }
+    })();
+  }, [data && data.recurring, sharedListIds, viewData]);
 
   const chartGroups = useMemo(() => {
     const m = new Map();
