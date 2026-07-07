@@ -643,10 +643,22 @@ function advance(dateStr, freq, anchorDay) {
     default: return null;
   }
 }
-/* Genera instancias vencidas de cada regla, sin duplicar (índice por regla+fecha). */
+/* Genera instancias vencidas de cada regla, sin duplicar (índice por regla+fecha).
+   Las reglas de tipo "transfer" generan los dos movimientos enlazados. */
 function runRecurring(data) {
   const today = todayStr();
   let changed = false;
+  let categories = data.categories;
+  const ensureTransferCat = (listId) => {
+    let cat = categories.find((c) => c.listId === listId && c.name.trim().toLowerCase() === "transferencia");
+    if (!cat) {
+      cat = { id: uid(), listId, name: "Transferencia", emoji: "🔁", color: colorFromEmoji("🔁") };
+      categories = [...categories, cat];
+      changed = true;
+    }
+    return cat;
+  };
+  const listName = (id) => { const l = data.lists.find((x) => x.id === id); return l ? l.name : "—"; };
   const existing = new Set(data.transactions.filter((t) => t.recurringId).map((t) => t.recurringId + "|" + t.date));
   const newTx = [];
   const rules = data.recurring.map((r) => {
@@ -657,10 +669,26 @@ function runRecurring(data) {
       const key = r.id + "|" + next;
       if (!existing.has(key)) {
         existing.add(key);
-        newTx.push({
-          id: uid(), listId: r.listId, categoryId: r.categoryId, type: r.type,
-          amount: r.amount, description: r.description, date: next, recurringId: r.id,
-        });
+        if (r.type === "transfer" && r.toListId) {
+          const catFrom = ensureTransferCat(r.listId);
+          const catTo = ensureTransferCat(r.toListId);
+          const tId = uid();
+          newTx.push({
+            id: uid(), listId: r.listId, categoryId: catFrom.id, type: "expense",
+            amount: r.amount, description: `hacia ${listName(r.toListId)}`, date: next,
+            recurringId: r.id, transferId: tId,
+          });
+          newTx.push({
+            id: uid(), listId: r.toListId, categoryId: catTo.id, type: "income",
+            amount: r.amount, description: `desde ${listName(r.listId)}`, date: next,
+            recurringId: r.id, transferId: tId,
+          });
+        } else {
+          newTx.push({
+            id: uid(), listId: r.listId, categoryId: r.categoryId, type: r.type,
+            amount: r.amount, description: r.description, date: next, recurringId: r.id,
+          });
+        }
       }
       next = advance(next, r.frequency, anchor);
       guard++; changed = true;
@@ -668,7 +696,7 @@ function runRecurring(data) {
     return next !== r.nextDate ? { ...r, nextDate: next } : r;
   });
   if (!changed && newTx.length === 0) return data;
-  return { ...data, transactions: [...data.transactions, ...newTx], recurring: rules };
+  return { ...data, categories, transactions: [...data.transactions, ...newTx], recurring: rules };
 }
 
 /* ----------------------- Iconos ----------------------- */
@@ -1513,6 +1541,9 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
   const list = data.lists.find((l) => l.id === listId);
   const toList = toListId ? data.lists.find((l) => l.id === toListId) : null;
   const isSharedList = !!(sharedListIds && sharedListIds.has(listId));
+  const toIsShared = !!(sharedListIds && toListId && sharedListIds.has(toListId));
+  /* la repetición vive en este dispositivo: solo entre listas privadas */
+  const canRepeat = isTransfer ? (!isSharedList && !toIsShared) : !isSharedList;
   const cSel = catId ? cats.find((c) => c.id === catId) : null;
   const valid = !isNaN(amt) && amt > 0 && !!date && !!listId
     && (isTransfer ? (!!toListId && toListId !== listId) : !!catId);
@@ -1535,7 +1566,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
             onClick={() => {
               haptic(16);
               onSubmit(isTransfer
-                ? { type: "transfer", amount: Math.round(amt * 100) / 100, listId, toListId, date, photo }
+                ? { type: "transfer", amount: Math.round(amt * 100) / 100, listId, toListId, date, photo, frequency: canRepeat ? freq : "none" }
                 : { type, amount: Math.round(amt * 100) / 100, description: desc.trim(), listId, categoryId: catId, date, frequency: isSharedList ? "none" : freq, photo });
               onClose();
             }}>
@@ -1556,7 +1587,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
               ]} />
           )}
           <DatePill value={date} onChange={setDate} />
-          {!isTransfer && !isSharedList && (
+          {canRepeat && (
             <BarePill value={freq} display={freqLabel(freq)} aria="Repetición"
               onChange={setFreq}
               options={FREQS.map((f) => ({ id: f.id, label: f.label }))} />
@@ -2260,7 +2291,10 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
                 </div>
               )}
               {data.recurring.map((r) => {
-                const c = catMap.get(r.categoryId) || { emoji: "❓", color: "#5D5D64", name: "—" };
+                const isTr = r.type === "transfer";
+                const c = isTr
+                  ? { emoji: "🔁", color: "#30B0C7", name: "Transferencia" }
+                  : catMap.get(r.categoryId) || { emoji: "❓", color: "#5D5D64", name: "—" };
                 return (
                   <SwipeRow key={r.id} deleteLabel="Eliminar recurrencia" onDelete={() => {
                     setConfirm({
@@ -2271,14 +2305,18 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
                   }}>
                     <button className="f-row" style={{ padding: "11px 14px", width: "100%", textAlign: "left" }}
                       aria-label={`Editar recurrencia ${r.description || c.name}`}
-                      onClick={() => { haptic(); setRecEdit(r); }}>
+                      onClick={() => {
+                        haptic();
+                        if (isTr) showToast("⇄", "Para cambiarla, elimínala y créala de nuevo");
+                        else setRecEdit(r);
+                      }}>
                       <EmojiBubble emoji={c.emoji} color={c.color} size={40} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {r.description || c.name} · <span style={{ color: r.type === "income" ? "var(--green)" : "var(--red)" }}>{r.type === "income" ? "+" : "−"}{fmt(r.amount)}</span>
+                          {isTr ? "Transferencia" : (r.description || c.name)} · <span style={{ color: r.type === "income" ? "var(--green)" : isTr ? "#30B0C7" : "var(--red)" }}>{r.type === "income" ? "+" : isTr ? "⇄" : "−"}{fmt(r.amount)}</span>
                         </div>
                         <div style={{ fontSize: 12, color: "var(--txt2)", fontWeight: 600, marginTop: 1 }}>
-                          {freqLabel(r.frequency)} · {listName(r.listId)} · próx. {r.nextDate ? fmtDate(r.nextDate) : "—"}
+                          {freqLabel(r.frequency)} · {isTr ? `${listName(r.listId)} → ${listName(r.toListId)}` : listName(r.listId)} · próx. {r.nextDate ? fmtDate(r.nextDate) : "—"}
                         </div>
                       </div>
                     </button>
@@ -2446,6 +2484,13 @@ export default function App() {
         : r)),
     })),
     deleteRecurring: (id) => update((d) => ({ ...d, recurring: d.recurring.filter((r) => r.id !== id) })),
+    addTransferRule: (p) => update((d) => runRecurring({
+      ...d,
+      recurring: [...d.recurring, {
+        id: uid(), type: "transfer", listId: p.listId, toListId: p.toListId,
+        amount: p.amount, frequency: p.frequency, startDate: p.date, nextDate: p.date,
+      }],
+    })),
   }), [update]);
 
   /* ----------------- fusión con datos compartidos (nube) ----------------- */
@@ -2706,7 +2751,11 @@ export default function App() {
         open={addOpen} onClose={() => setAddOpen(false)} data={viewData} defaultListId={viewData.activeListId} sharedListIds={sharedListIds} allowTransfer
         onCreateCategory={(lid, p) => routedActions.createCategory(lid, p)}
         onSubmit={(p) => {
-          if (p.type === "transfer") { addTransfer(p); return; }
+          if (p.type === "transfer") {
+            if (p.frequency && p.frequency !== "none") { actions.addTransferRule(p); showToast("🔁", "Transferencia recurrente creada"); }
+            else addTransfer(p);
+            return;
+          }
           routedActions.addTransaction(p);
           showToast(p.type === "income" ? "💚" : "✅", p.frequency !== "none" ? "Recurrencia creada" : "Movimiento agregado");
         }}
