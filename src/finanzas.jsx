@@ -743,6 +743,11 @@ function Segmented({ options, value, onChange, renderExtra, className }) {
    evita que iOS desplace la app principal al abrir el teclado (la hoja
    y el fondo quedan separados). */
 let bodyLockCount = 0, bodyLockY = 0;
+/* iOS ignora overflow:hidden al enfocar un campo y desplaza la página
+   igualmente: cualquier scroll del fondo se revierte al instante */
+function onLockedScroll() {
+  if (Math.abs((window.scrollY || 0) - bodyLockY) > 1) window.scrollTo(0, bodyLockY);
+}
 function lockBodyScroll() {
   if (++bodyLockCount > 1) return;
   bodyLockY = window.scrollY || 0;
@@ -751,10 +756,12 @@ function lockBodyScroll() {
   document.documentElement.style.overflow = "hidden";
   document.documentElement.style.overscrollBehavior = "none";
   document.body.style.overflow = "hidden";
+  window.addEventListener("scroll", onLockedScroll, { passive: true });
 }
 function unlockBodyScroll() {
   if (--bodyLockCount > 0) return;
   bodyLockCount = 0;
+  window.removeEventListener("scroll", onLockedScroll);
   document.documentElement.style.overflow = "";
   document.documentElement.style.overscrollBehavior = "";
   document.body.style.overflow = "";
