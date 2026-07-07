@@ -774,13 +774,9 @@ function Sheet({ open, onClose, title, children, footer }) {
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
   const [kb, setKb] = useState(0);
-  const [needsPad, setNeedsPad] = useState(false);
-  const [frozenH, setFrozenH] = useState(null);
-  const sheetRef = useRef(null);
-  const bodyRef = useRef(null);
-  const kbRef = useRef(0);
+  const [animDone, setAnimDone] = useState(false);
   useEffect(() => {
-    if (open) { setMounted(true); setClosing(false); }
+    if (open) { setMounted(true); setClosing(false); setAnimDone(false); }
     else if (mounted) {
       setClosing(true);
       const t = setTimeout(() => { setMounted(false); setClosing(false); }, 300);
@@ -792,64 +788,39 @@ function Sheet({ open, onClose, title, children, footer }) {
     lockBodyScroll();
     return () => unlockBodyScroll();
   }, [mounted]);
+  /* alto del teclado: solo la reducción del visual viewport (con el fondo
+     bloqueado, el desplazamiento no entra en el cálculo → valor estable) */
   useEffect(() => {
     if (!mounted || typeof window === "undefined" || !window.visualViewport) return;
     const vv = window.visualViewport;
     let raf = null;
     const apply = () => {
       raf = null;
-      setKb(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)));
+      setKb(Math.max(0, Math.round(window.innerHeight - vv.height)));
     };
     const onChange = () => { if (raf === null) raf = requestAnimationFrame(apply); };
     vv.addEventListener("resize", onChange);
-    vv.addEventListener("scroll", onChange);
     onChange();
     return () => {
       if (raf !== null) cancelAnimationFrame(raf);
       vv.removeEventListener("resize", onChange);
-      vv.removeEventListener("scroll", onChange);
       setKb(0);
     };
   }, [mounted]);
 
-  /* la altura exterior de la hoja se congela mientras el teclado está abierto:
-     el relleno interno no la agranda ni crea espacio vacío visible */
-  useEffect(() => {
-    kbRef.current = kb;
-    if (kb > 0) {
-      setFrozenH((h) => (h == null && sheetRef.current ? sheetRef.current.offsetHeight : h));
-    } else { setFrozenH(null); setNeedsPad(false); }
-  }, [kb]);
-
-  /* la hoja NO se mueve con el teclado. Si el campo enfocado queda tapado,
-     el interior de la hoja se desplaza manualmente lo justo para dejarlo
-     por encima del teclado (scrollIntoView no sabe dónde está el teclado). */
-  const onFocusCapture = (e) => {
-    const t = e.target;
-    if (!t || !/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
-    setTimeout(() => {
-      if (!kbRef.current || typeof window === "undefined") return;
-      const vv = window.visualViewport;
-      const visibleBottom = vv ? vv.offsetTop + vv.height - 14 : window.innerHeight - kbRef.current - 14;
-      const delta = t.getBoundingClientRect().bottom - visibleBottom;
-      if (delta > 0) {
-        setNeedsPad(true);
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          if (bodyRef.current) {
-            try { bodyRef.current.scrollBy({ top: delta + 12, behavior: "smooth" }); }
-            catch (err) { bodyRef.current.scrollTop += delta + 12; }
-          }
-        }));
-      }
-    }, 400);
-  };
-
   if (!mounted) return null;
+  /* con el fondo bloqueado, la hoja entera se eleva sobre el teclado; el
+     inline transform solo puede aplicarse cuando la animación de entrada
+     terminó (su fill-mode la sobreescribiría) */
+  const lifted = animDone && !closing && kb > 0;
   return (
     <>
       <div className={`sheet-backdrop ${closing ? "closing" : ""}`} onClick={onClose} />
-      <div ref={sheetRef} className={`sheet ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={title}
-        style={kb > 0 && frozenH ? { height: frozenH } : undefined} onFocusCapture={onFocusCapture}>
+      <div className={`sheet ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={title}
+        onAnimationEnd={(e) => { if (e.target === e.currentTarget) setAnimDone(true); }}
+        style={lifted
+          ? { animation: "none", transform: `translateY(-${kb}px)`, maxHeight: `calc(100dvh - ${kb}px - 20px)` }
+          : animDone && !closing ? { animation: "none" } : undefined}>
         <div className="grabber" />
         {title != null && (
           <div className="sheet-title-row">
@@ -857,7 +828,7 @@ function Sheet({ open, onClose, title, children, footer }) {
             <button className="sheet-close" onClick={onClose} aria-label="Cerrar"><Icon name="x" size={15} /></button>
           </div>
         )}
-        <div ref={bodyRef} className="sheet-body" style={kb > 0 && needsPad ? { paddingBottom: kb } : undefined}>{children}</div>
+        <div className="sheet-body">{children}</div>
         {footer}
       </div>
     </>
