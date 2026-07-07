@@ -777,6 +777,7 @@ function Sheet({ open, onClose, title, children, footer }) {
   const [needsPad, setNeedsPad] = useState(false);
   const [frozenH, setFrozenH] = useState(null);
   const sheetRef = useRef(null);
+  const bodyRef = useRef(null);
   const kbRef = useRef(0);
   useEffect(() => {
     if (open) { setMounted(true); setClosing(false); }
@@ -820,21 +821,25 @@ function Sheet({ open, onClose, title, children, footer }) {
     } else { setFrozenH(null); setNeedsPad(false); }
   }, [kb]);
 
-  /* la hoja NO se mueve con el teclado. El ajuste (relleno interno + scroll)
-     solo se activa si el campo enfocado queda realmente tapado por el teclado;
-     si ya es visible, no se toca nada (sin saltos ni espacios vacíos). */
+  /* la hoja NO se mueve con el teclado. Si el campo enfocado queda tapado,
+     el interior de la hoja se desplaza manualmente lo justo para dejarlo
+     por encima del teclado (scrollIntoView no sabe dónde está el teclado). */
   const onFocusCapture = (e) => {
     const t = e.target;
     if (!t || !/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
     setTimeout(() => {
       if (!kbRef.current || typeof window === "undefined") return;
       const vv = window.visualViewport;
-      const visibleBottom = vv ? vv.offsetTop + vv.height - 8 : window.innerHeight - kbRef.current - 8;
-      if (t.getBoundingClientRect().bottom > visibleBottom) {
+      const visibleBottom = vv ? vv.offsetTop + vv.height - 14 : window.innerHeight - kbRef.current - 14;
+      const delta = t.getBoundingClientRect().bottom - visibleBottom;
+      if (delta > 0) {
         setNeedsPad(true);
-        requestAnimationFrame(() => {
-          try { t.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (err) {}
-        });
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (bodyRef.current) {
+            try { bodyRef.current.scrollBy({ top: delta + 12, behavior: "smooth" }); }
+            catch (err) { bodyRef.current.scrollTop += delta + 12; }
+          }
+        }));
       }
     }, 400);
   };
@@ -852,7 +857,7 @@ function Sheet({ open, onClose, title, children, footer }) {
             <button className="sheet-close" onClick={onClose} aria-label="Cerrar"><Icon name="x" size={15} /></button>
           </div>
         )}
-        <div className="sheet-body" style={kb > 0 && needsPad ? { paddingBottom: kb } : undefined}>{children}</div>
+        <div ref={bodyRef} className="sheet-body" style={kb > 0 && needsPad ? { paddingBottom: kb } : undefined}>{children}</div>
         {footer}
       </div>
     </>
