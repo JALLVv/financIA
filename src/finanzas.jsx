@@ -238,7 +238,8 @@ input::placeholder{color:var(--txt3);}
 .mode-thumb.expense{background:var(--red);}
 .mode-thumb.income{background:var(--green);}
 .mode-thumb.transfer{background:#30B0C7;}
-.mode-btn{flex:1; position:relative; z-index:1; padding:5px 0; font-size:19px; font-weight:800; line-height:1.05; color:var(--txt2); border-radius:9px; transition:color .25s;}
+.mode-btn{flex:1; position:relative; z-index:1; padding:5px 0; display:grid; place-items:center; color:var(--txt2); border-radius:9px; transition:color .25s;}
+.mode-btn svg{display:block;}
 .mode-btn.on{color:#fff;}
 
 /* categorías en chips horizontales */
@@ -715,6 +716,7 @@ const Icon = memo(function Icon({ name, size = 18, color = "currentColor", strok
     case "search": return <svg {...P}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>;
     case "plus": return <svg {...P}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
     case "minus": return <svg {...P}><line x1="5" y1="12" x2="19" y2="12" /></svg>;
+    case "arrowR": return <svg {...P}><line x1="4" y1="12" x2="20" y2="12" /><polyline points="14 6 20 12 14 18" /></svg>;
     case "equal": return <svg {...P}><line x1="6" y1="9" x2="18" y2="9" /><line x1="6" y1="15" x2="18" y2="15" /></svg>;
     case "x": return <svg {...P}><line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" /></svg>;
     case "user": return <svg {...P}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>;
@@ -1606,7 +1608,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
           {amount.trim() !== "" && (() => {
             const modes = allowTransfer && !editing ? ["expense", "income", "transfer"] : ["expense", "income"];
             const idx = Math.max(0, modes.indexOf(type));
-            const signs = { expense: "−", income: "+", transfer: "→" };
+            const icons = { expense: "minus", income: "plus", transfer: "arrowR" };
             const labels = { expense: "Gasto", income: "Ingreso", transfer: "Transferencia" };
             return (
               <div className="mode-seg content-swap" role="tablist">
@@ -1615,7 +1617,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
                 {modes.map((m) => (
                   <button key={m} className={`mode-btn ${type === m ? "on" : ""}`} role="tab" aria-selected={type === m}
                     aria-label={labels[m]} onClick={() => { haptic(); setType(m); }}>
-                    {signs[m]}
+                    <Icon name={icons[m]} size={22} stroke={2.6} />
                   </button>
                 ))}
               </div>
