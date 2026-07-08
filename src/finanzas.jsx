@@ -238,7 +238,7 @@ input::placeholder{color:var(--txt3);}
 .mode-thumb.expense{background:var(--red);}
 .mode-thumb.income{background:var(--green);}
 .mode-thumb.transfer{background:#30B0C7;}
-.mode-btn{flex:1; position:relative; z-index:1; padding:5px 0; font-size:14px; font-weight:800; line-height:1.2; color:var(--txt2); border-radius:9px; transition:color .25s;}
+.mode-btn{flex:1; position:relative; z-index:1; padding:5px 0; font-size:19px; font-weight:800; line-height:1.05; color:var(--txt2); border-radius:9px; transition:color .25s;}
 .mode-btn.on{color:#fff;}
 
 /* categorías en chips horizontales */
@@ -1606,7 +1606,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
           {amount.trim() !== "" && (() => {
             const modes = allowTransfer && !editing ? ["expense", "income", "transfer"] : ["expense", "income"];
             const idx = Math.max(0, modes.indexOf(type));
-            const signs = { expense: "−", income: "+", transfer: "⇄" };
+            const signs = { expense: "−", income: "+", transfer: "→" };
             const labels = { expense: "Gasto", income: "Ingreso", transfer: "Transferencia" };
             return (
               <div className="mode-seg content-swap" role="tablist">
