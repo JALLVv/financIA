@@ -308,7 +308,7 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 @keyframes overlayIn{from{opacity:0; transform:translateY(4%) scale(.98)}to{opacity:1; transform:none}}
 @keyframes overlayOut{from{opacity:1}to{opacity:0; transform:translateY(3%) scale(.98)}}
 .overlay-hdr{display:flex; align-items:center; gap:12px; padding:calc(12px + env(safe-area-inset-top)) 20px 12px; flex:none; max-width:520px; margin:0 auto; width:100%;}
-.overlay-body{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:0 20px calc(40px + env(safe-area-inset-bottom)); max-width:520px; margin:0 auto; width:100%;}
+.overlay-body{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:0 20px calc(40px + env(safe-area-inset-bottom) + var(--kb, 0px)); max-width:520px; margin:0 auto; width:100%;}
 .search-input-wrap{flex:1; display:flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:10px 14px;}
 .search-input-wrap input{flex:1; background:none; border:none; outline:none; font-size:15px; min-width:0;}
 .cancel-txt{color:var(--accent); font-weight:600; font-size:15px; flex:none;}
@@ -825,20 +825,30 @@ function Sheet({ open, onClose, title, children, footer }) {
     return () => unlockBodyScroll();
   }, [mounted]);
   /* alto del teclado: solo la reducción del visual viewport (con el fondo
-     bloqueado, el desplazamiento no entra en el cálculo → valor estable) */
+     bloqueado, el desplazamiento no entra en el cálculo → valor estable).
+     Las subidas se aplican al instante; las bajadas se confirman tras una
+     pausa, porque al cambiar de teclado (emoji ↔ texto) o de campo iOS
+     reporta un cierre transitorio que hacía temblar y esconder la hoja. */
   useEffect(() => {
     if (!mounted || typeof window === "undefined" || !window.visualViewport) return;
     const vv = window.visualViewport;
-    let raf = null;
+    let raf = null, downTimer = null, last = 0;
+    const measure = () => Math.max(0, Math.round(window.innerHeight - vv.height));
+    const commit = (v) => { last = v; setKb(v); };
     const apply = () => {
       raf = null;
-      setKb(Math.max(0, Math.round(window.innerHeight - vv.height)));
+      const v = measure();
+      if (v >= last) { clearTimeout(downTimer); downTimer = null; commit(v); }
+      else if (downTimer === null) {
+        downTimer = setTimeout(() => { downTimer = null; commit(measure()); }, 250);
+      }
     };
     const onChange = () => { if (raf === null) raf = requestAnimationFrame(apply); };
     vv.addEventListener("resize", onChange);
     onChange();
     return () => {
       if (raf !== null) cancelAnimationFrame(raf);
+      clearTimeout(downTimer);
       vv.removeEventListener("resize", onChange);
       setKb(0);
     };
@@ -855,8 +865,8 @@ function Sheet({ open, onClose, title, children, footer }) {
       <div className={`sheet ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={title}
         onAnimationEnd={(e) => { if (e.target === e.currentTarget) setAnimDone(true); }}
         style={lifted
-          ? { animation: "none", transform: `translateY(-${kb}px)`, maxHeight: `calc(100dvh - ${kb}px - 20px)` }
-          : animDone && !closing ? { animation: "none" } : undefined}>
+          ? { animation: "none", transform: `translateY(-${kb}px)`, maxHeight: `calc(100dvh - ${kb}px - 20px)`, transition: "transform .22s var(--ease-ios)" }
+          : animDone && !closing ? { animation: "none", transition: "transform .22s var(--ease-ios)" } : undefined}>
         <div className="grabber" />
         {title != null && (
           <div className="sheet-title-row">
@@ -875,6 +885,7 @@ function Sheet({ open, onClose, title, children, footer }) {
 function Overlay({ open, onClose, children }) {
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
+  const [kb, setKb] = useState(0);
   useEffect(() => {
     if (open) { setMounted(true); setClosing(false); }
     else if (mounted) {
@@ -888,8 +899,27 @@ function Overlay({ open, onClose, children }) {
     lockBodyScroll();
     return () => unlockBodyScroll();
   }, [mounted]);
+  /* espacio inferior igual al teclado para que ningún campo quede tapado */
+  useEffect(() => {
+    if (!mounted || typeof window === "undefined" || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    let raf = null;
+    const apply = () => { raf = null; setKb(Math.max(0, Math.round(window.innerHeight - vv.height))); };
+    const onChange = () => { if (raf === null) raf = requestAnimationFrame(apply); };
+    vv.addEventListener("resize", onChange);
+    onChange();
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+      vv.removeEventListener("resize", onChange);
+      setKb(0);
+    };
+  }, [mounted]);
   if (!mounted) return null;
-  return <div className={`overlay ${closing ? "closing" : ""}`}>{children({ requestClose: onClose })}</div>;
+  return (
+    <div className={`overlay ${closing ? "closing" : ""}`} style={{ "--kb": `${kb}px` }}>
+      {children({ requestClose: onClose })}
+    </div>
+  );
 }
 
 /* tinte suave del color (33 = 20% alfa) para que resalte el emoji */
