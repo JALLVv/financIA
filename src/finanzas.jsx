@@ -119,7 +119,7 @@ input::placeholder{color:var(--txt3);}
 .bar .b-amt{font-size:11.5px; font-weight:700; color:var(--txt2); margin-top:3px; white-space:nowrap; letter-spacing:-.03em;}
 .bar-detail{
   margin-top:12px; background:var(--card); border:1px solid var(--line); border-radius:20px; padding:14px 16px;
-  display:flex; align-items:center; gap:12px; animation:popIn .35s var(--spring) both;
+  display:flex; align-items:center; gap:12px; animation:popIn .3s var(--spring) both;
 }
 @keyframes popIn{from{opacity:0; transform:scale(.94) translateY(6px)}to{opacity:1; transform:none}}
 .bd-meta{flex:1; min-width:0;}
@@ -147,7 +147,7 @@ input::placeholder{color:var(--txt3);}
 .tx-amt{font-weight:700; font-size:15px; font-feature-settings:"tnum" 1; white-space:nowrap; letter-spacing:-.03em;}
 .tx-amt.inc{color:var(--green);} .tx-amt.exp{color:var(--txt);}
 .tx-badge{font-size:10px; font-weight:700; color:var(--txt3); text-align:right; margin-top:2px;}
-.content-swap{animation:swap .4s var(--ease-ios) both;}
+.content-swap{animation:swap .3s var(--ease-ios) both;}
 @keyframes swap{from{opacity:0; transform:translateY(10px)}to{opacity:1; transform:none}}
 
 /* ---------- empty ---------- */
@@ -184,10 +184,10 @@ input::placeholder{color:var(--txt3);}
   border:1px solid var(--line2); border-bottom:none; border-radius:26px 26px 0 0;
   padding:10px 20px calc(22px + env(safe-area-inset-bottom));
   max-height:88dvh; display:flex; flex-direction:column;
-  animation:sheetUp .42s var(--ease-ios) both;
+  animation:sheetUp .32s var(--ease-ios) both;
   box-shadow:0 -20px 60px rgba(0,0,0,.5);
 }
-.sheet.closing{animation:sheetDown .3s var(--ease-ios) both;}
+.sheet.closing{animation:sheetDown .24s var(--ease-ios) both;}
 @keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
 @keyframes sheetDown{from{transform:none}to{transform:translateY(105%)}}
 .grabber{width:38px;height:5px;border-radius:3px;background:var(--card3);margin:2px auto 10px;flex:none;}
@@ -302,9 +302,9 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 /* ---------- search ---------- */
 .overlay{
   position:fixed; inset:0; z-index:70; background:var(--bg); display:flex; flex-direction:column;
-  animation:overlayIn .4s var(--ease-ios) both; max-width:100%;
+  animation:overlayIn .3s var(--ease-ios) both; max-width:100%;
 }
-.overlay.closing{animation:overlayOut .3s var(--ease-ios) both;}
+.overlay.closing{animation:overlayOut .22s var(--ease-ios) both;}
 @keyframes overlayIn{from{opacity:0; transform:translateY(4%) scale(.98)}to{opacity:1; transform:none}}
 @keyframes overlayOut{from{opacity:1}to{opacity:0; transform:translateY(3%) scale(.98)}}
 .overlay-hdr{display:flex; align-items:center; gap:12px; padding:calc(12px + env(safe-area-inset-top)) 20px 12px; flex:none; max-width:520px; margin:0 auto; width:100%;}
@@ -352,7 +352,7 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 .disc-title{flex:1; font-weight:700; font-size:15.5px;}
 .chev{color:var(--txt3); transition:transform .35s var(--ease-ios);}
 .chev.open{transform:rotate(90deg);}
-.disc-body{border-top:1px solid var(--line); animation:discIn .35s var(--ease-ios) both; overflow:hidden;}
+.disc-body{border-top:1px solid var(--line); animation:discIn .26s var(--ease-ios) both; overflow:hidden;}
 @keyframes discIn{from{opacity:0; transform:translateY(-6px)}to{opacity:1; transform:none}}
 .add-row{display:flex; align-items:center; gap:10px; width:100%; padding:13px 16px; color:var(--accent); font-weight:700; font-size:15px; transition:background .15s;}
 .add-row:active{background:var(--card2);}
@@ -815,7 +815,7 @@ function Sheet({ open, onClose, title, children, footer }) {
     if (open) { setMounted(true); setClosing(false); setAnimDone(false); }
     else if (mounted) {
       setClosing(true);
-      const t = setTimeout(() => { setMounted(false); setClosing(false); }, 300);
+      const t = setTimeout(() => { setMounted(false); setClosing(false); }, 250);
       return () => clearTimeout(t);
     }
   }, [open]);
@@ -854,6 +854,14 @@ function Sheet({ open, onClose, title, children, footer }) {
     };
   }, [mounted]);
 
+  /* el campo enfocado se desliza a la vista dentro de la hoja (la hoja ya
+     está entera sobre el teclado, así que la visibilidad es real) */
+  const onFieldFocus = (e) => {
+    const t = e.target;
+    if (!t || !/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
+    setTimeout(() => { try { t.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (err) {} }, 380);
+  };
+
   if (!mounted) return null;
   /* con el fondo bloqueado, la hoja entera se eleva sobre el teclado; el
      inline transform solo puede aplicarse cuando la animación de entrada
@@ -863,6 +871,7 @@ function Sheet({ open, onClose, title, children, footer }) {
     <>
       <div className={`sheet-backdrop ${closing ? "closing" : ""}`} onClick={onClose} />
       <div className={`sheet ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={title}
+        onFocusCapture={onFieldFocus}
         onAnimationEnd={(e) => { if (e.target === e.currentTarget) setAnimDone(true); }}
         style={lifted
           ? { animation: "none", transform: `translateY(-${kb}px)`, maxHeight: `calc(100dvh - ${kb}px - 20px)`, transition: "transform .22s var(--ease-ios)" }
@@ -890,7 +899,7 @@ function Overlay({ open, onClose, children }) {
     if (open) { setMounted(true); setClosing(false); }
     else if (mounted) {
       setClosing(true);
-      const t = setTimeout(() => { setMounted(false); setClosing(false); }, 280);
+      const t = setTimeout(() => { setMounted(false); setClosing(false); }, 230);
       return () => clearTimeout(t);
     }
   }, [open]);
@@ -916,7 +925,12 @@ function Overlay({ open, onClose, children }) {
   }, [mounted]);
   if (!mounted) return null;
   return (
-    <div className={`overlay ${closing ? "closing" : ""}`} style={{ "--kb": `${kb}px` }}>
+    <div className={`overlay ${closing ? "closing" : ""}`} style={{ "--kb": `${kb}px` }}
+      onFocusCapture={(e) => {
+        const t = e.target;
+        if (!t || !/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
+        setTimeout(() => { try { t.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (err) {} }, 380);
+      }}>
       {children({ requestClose: onClose })}
     </div>
   );
@@ -2537,7 +2551,10 @@ export default function App() {
     };
   }, [data, cloud.uid, cloud.social]);
 
-  /* enruta cada acción a lo local o a la nube según la lista/el elemento */
+  /* enruta cada acción a lo local o a la nube según la lista/el elemento
+     (viewData vía ref: las acciones no cambian de identidad en cada render) */
+  const viewDataRef = useRef(viewData);
+  viewDataRef.current = viewData;
   const routedActions = useMemo(() => ({
     ...actions,
     setProfile: (patch) => { actions.setProfile(patch); if (cloud.uid) cloud.api.syncProfile(patch); },
@@ -2562,16 +2579,17 @@ export default function App() {
     },
     deleteTransaction: (id) => {
       /* si es parte de una transferencia, se eliminan ambos movimientos */
-      const tx = viewData ? viewData.transactions.find((t) => t.id === id) : null;
+      const vd = viewDataRef.current;
+      const tx = vd ? vd.transactions.find((t) => t.id === id) : null;
       const targets = tx && tx.transferId
-        ? viewData.transactions.filter((t) => t.transferId === tx.transferId).map((t) => t.id)
+        ? vd.transactions.filter((t) => t.transferId === tx.transferId).map((t) => t.id)
         : [id];
       for (const tid of targets) {
         if (sharedTxIds.has(tid)) cloud.api.deleteTransaction(tid);
         else actions.deleteTransaction(tid);
       }
     },
-  }), [actions, cloud.api, cloud.uid, sharedListIds, sharedCatIds, sharedTxIds, viewData]);
+  }), [actions, cloud.api, cloud.uid, sharedListIds, sharedCatIds, sharedTxIds]);
 
   /* al iniciar sesión: reconciliar nombre y foto entre el perfil local y el de la nube */
   const syncedProfileRef = useRef(null);
