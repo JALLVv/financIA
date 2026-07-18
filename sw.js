@@ -1,7 +1,8 @@
-/* Service worker: red primero para el código de la app (así las
-   actualizaciones se ven al recargar) y caché como respaldo sin conexión.
+/* Service worker: el código de la app se sirve al instante desde caché y
+   se actualiza en segundo plano (stale-while-revalidate) — arranque rápido
+   y la versión nueva queda lista para la siguiente apertura.
    Incluye notificaciones push. */
-const CACHE = "finanzas-v2";
+const CACHE = "finanzas-v3";
 const ASSETS = ["./", "./index.html", "./app.js", "./config.js", "./manifest.webmanifest",
   "./icons/icon-180.png", "./icons/icon-192.png", "./icons/icon-512.png"];
 
@@ -27,16 +28,19 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (url.origin !== location.origin) return; // Supabase y demás: directo a la red
 
-  /* el código de la app siempre se busca primero en la red */
+  /* código de la app: caché al instante + actualización en segundo plano */
   const fresh = e.request.mode === "navigate"
     || url.pathname.endsWith("/")
     || /\/(app\.js|config\.js|index\.html)$/.test(url.pathname);
 
   if (fresh) {
     e.respondWith(
-      fetch(e.request)
-        .then((res) => putInCache(e.request, res))
-        .catch(() => caches.match(e.request).then((hit) => hit || caches.match("./index.html")))
+      caches.match(e.request).then((hit) => {
+        const update = fetch(e.request)
+          .then((res) => putInCache(e.request, res))
+          .catch(() => hit || caches.match("./index.html"));
+        return hit || update;
+      })
     );
     return;
   }
