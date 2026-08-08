@@ -25,7 +25,7 @@ const CSS = `
 .fin-app{
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;
   background:var(--bg); color:var(--txt);
-  position:relative; width:100%; height:100%; min-height:100dvh; overflow:hidden;
+  position:relative; width:100%; height:var(--appH, 100dvh); min-height:var(--appH, 100dvh); overflow:visible;
   -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
   font-feature-settings:"tnum" 1;
 }
@@ -2474,6 +2474,19 @@ export default function App() {
   const topRef = useRef(null);
   const topObs = useRef(null);
   const [topH, setTopH] = useState(0);
+  const [appH, setAppH] = useState(0);
+
+  /* alto real de la ventana: la app ocupa exactamente la pantalla en iOS */
+  useEffect(() => {
+    const set = () => setAppH(Math.round(window.innerHeight));
+    set();
+    window.addEventListener("resize", set);
+    window.addEventListener("orientationchange", set);
+    return () => {
+      window.removeEventListener("resize", set);
+      window.removeEventListener("orientationchange", set);
+    };
+  }, []);
 
   /* alto real de la cabecera fija: las fechas se pegan justo debajo */
   const measureTop = useCallback((el) => {
@@ -2810,7 +2823,7 @@ export default function App() {
   }
 
   return (
-    <div className="fin-app" style={{ "--topH": `${topH}px` }}>
+    <div className="fin-app" style={{ "--topH": `${topH}px`, ...(appH ? { "--appH": `${appH}px` } : {}) }}>
       <style>{CSS}</style>
       <div className="fin-scroll">
         {/* ---------- encabezado ---------- */}
