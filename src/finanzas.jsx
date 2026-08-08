@@ -35,12 +35,18 @@ input::placeholder{color:var(--txt3);}
 
 /* ---------- cabecera fija (encabezado + balance + filtro) ---------- */
 .top-fixed{
-  position:sticky; top:0; z-index:40; background:var(--bg);
-  margin:0 -20px; padding:0 20px 2px;
+  position:sticky; top:0; z-index:40; margin:0 -20px; padding:0 20px 2px;
+  background:linear-gradient(180deg, var(--bg) 55%, rgba(22,22,26,.9) 78%, rgba(22,22,26,.55) 92%, rgba(22,22,26,0) 100%);
+}
+.top-fixed::before{
+  content:""; position:absolute; left:0; right:0; top:0; bottom:-28px; z-index:-1; pointer-events:none;
+  backdrop-filter:blur(16px) saturate(150%); -webkit-backdrop-filter:blur(16px) saturate(150%);
+  mask:linear-gradient(#000 60%, rgba(0,0,0,.5) 86%, transparent 100%);
+  -webkit-mask:linear-gradient(#000 60%, rgba(0,0,0,.5) 86%, transparent 100%);
 }
 .top-fixed::after{
-  content:""; position:absolute; left:0; right:0; top:100%; height:26px; pointer-events:none;
-  background:linear-gradient(var(--bg), rgba(22,22,26,0));
+  content:""; position:absolute; left:0; right:0; top:100%; height:28px; pointer-events:none;
+  background:linear-gradient(rgba(22,22,26,.7), rgba(22,22,26,0));
 }
 .hdr{
   position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between;
@@ -133,18 +139,22 @@ input::placeholder{color:var(--txt3);}
 
 /* ---------- transactions ---------- */
 .tx-section{margin-top:26px;}
-.date-hdr{display:flex; align-items:center; justify-content:space-between; gap:10px; margin:20px 2px 6px;}
-.date-pill{
-  background:var(--card2); border-radius:999px; padding:5px 13px; font-size:12.5px; font-weight:700;
-  color:var(--txt2); font-feature-settings:"tnum" 1; letter-spacing:-.01em;
+.date-hdr{
+  position:sticky; top:calc(var(--topH, 0px) - 2px); z-index:20;
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  margin:16px -20px 8px; padding:8px 20px; background:var(--bg);
 }
-.date-pill{transition:transform .25s var(--spring);}
-.date-pill:active{transform:scale(.94);}
-.date-total{font-size:13.5px; font-weight:800; letter-spacing:-.03em; font-feature-settings:"tnum" 1; padding-right:4px;}
+.date-pill,.date-total{
+  background:var(--card2); border-radius:999px; padding:5px 13px; font-weight:700;
+  font-feature-settings:"tnum" 1; transition:transform .25s var(--spring);
+}
+.date-pill{font-size:12.5px; color:var(--txt2); letter-spacing:-.01em;}
+.date-pill:active,.date-total:active{transform:scale(.94);}
+.date-total{font-size:13px; font-weight:800; letter-spacing:-.03em;}
 .date-total.pos{color:var(--green);} .date-total.neg{color:var(--txt);} .date-total.zero{color:var(--txt3);}
-.tx-card{border-radius:18px; overflow:hidden;}
+.tx-card{display:flex; flex-direction:column; gap:7px;}
 .tx-row{
-  display:flex; align-items:center; gap:12px; padding:9px 8px; width:100%; text-align:left; border-radius:16px;
+  display:flex; align-items:center; gap:12px; padding:7px 8px; width:100%; text-align:left; border-radius:16px;
   transition:background .18s, transform .25s var(--spring); position:relative;
   animation:rowIn .34s var(--ease-ios) both;
 }
@@ -797,28 +807,34 @@ function Segmented({ options, value, onChange, renderExtra, className }) {
    evita que iOS desplace la app principal al abrir el teclado (la hoja
    y el fondo quedan separados). */
 let bodyLockCount = 0, bodyLockY = 0;
-/* iOS ignora overflow:hidden al enfocar un campo y desplaza la página
-   igualmente: cualquier scroll del fondo se revierte al instante */
-function onLockedScroll() {
-  if (Math.abs((window.scrollY || 0) - bodyLockY) > 1) window.scrollTo(0, bodyLockY);
-}
+/* Al abrir una hoja el body se fija en su posición actual: el fondo conserva
+   exactamente el mismo scroll y el teclado ya no puede desplazar la página
+   (overflow:hidden saltaba al tope o dejaba el fondo con otro scroll). */
 function lockBodyScroll() {
   if (++bodyLockCount > 1) return;
   bodyLockY = window.scrollY || 0;
-  /* overflow:hidden en la raíz: congela el fondo sin reposicionar nada
-     (position:fixed en body dejaba una franja negra al cerrar) */
-  document.documentElement.style.overflow = "hidden";
-  document.documentElement.style.overscrollBehavior = "none";
-  document.body.style.overflow = "hidden";
-  window.addEventListener("scroll", onLockedScroll, { passive: true });
+  const b = document.body;
+  b.style.position = "fixed";
+  b.style.top = `-${bodyLockY}px`;
+  b.style.left = "0";
+  b.style.right = "0";
+  b.style.width = "100%";
+  b.style.minHeight = "100dvh";
+  b.style.overflow = "hidden";
+  b.style.overscrollBehavior = "none";
 }
 function unlockBodyScroll() {
   if (--bodyLockCount > 0) return;
   bodyLockCount = 0;
-  window.removeEventListener("scroll", onLockedScroll);
-  document.documentElement.style.overflow = "";
-  document.documentElement.style.overscrollBehavior = "";
-  document.body.style.overflow = "";
+  const b = document.body;
+  b.style.position = "";
+  b.style.top = "";
+  b.style.left = "";
+  b.style.right = "";
+  b.style.width = "";
+  b.style.minHeight = "";
+  b.style.overflow = "";
+  b.style.overscrollBehavior = "";
   window.scrollTo(0, bodyLockY);
 }
 
@@ -2096,7 +2112,6 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
   const [friendEmail, setFriendEmail] = useState("");
   const [inviteList, setInviteList] = useState(null); // lista compartida a la que invitar
   const [pushOn, setPushOn] = useState(false);
-  const [notifSheet, setNotifSheet] = useState(false);
   const fileRef = useRef(null);
 
   const privColor = useMemo(() => colorFromEmoji("🤫"), []);
@@ -2172,23 +2187,6 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
             </div>
           )}
         </div>
-
-        {/* -------- Notificaciones -------- */}
-        {cloud.enabled && cloud.uid && (() => {
-          const unread = cloud.social.notifications.filter((n) => !n.read).length;
-          return (
-            <div className="disclosure">
-              <button className="disc-head" onClick={() => { haptic(); setNotifSheet(true); }} aria-label="Notificaciones">
-                <span className="bell-wrap" style={{ display: "grid" }}>
-                  <GrayIconBubble><Icon name="bell" size={19} /></GrayIconBubble>
-                  {unread > 0 && <span className="badge-dot">{unread > 9 ? "9+" : unread}</span>}
-                </span>
-                <span className="disc-title">Notificaciones</span>
-                <span className="chev"><Icon name="chevR" size={16} /></span>
-              </button>
-            </div>
-          );
-        })()}
 
         {/* -------- Amigos -------- */}
         <div className="disclosure">
@@ -2459,7 +2457,6 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
       <ConfirmSheet open={!!confirm} onClose={() => setConfirm(null)} title={confirm ? confirm.title : ""} message={confirm ? confirm.message : ""}
         confirmLabel={confirm && confirm.label ? confirm.label : "Eliminar"} onConfirm={() => confirm && confirm.fn()} />
       <InviteSheet open={!!inviteList} onClose={() => setInviteList(null)} list={inviteList} cloud={cloud} />
-      <NotificationsSheet open={notifSheet} onClose={() => setNotifSheet(false)} cloud={cloud} />
     </>
   );
 }
@@ -2477,12 +2474,29 @@ export default function App() {
   const [actionTx, setActionTx] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [periodOpen, setPeriodOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [photoView, setPhotoView] = useState(null); // foto de movimiento a pantalla completa
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
+  const topRef = useRef(null);
+  const topObs = useRef(null);
+  const [topH, setTopH] = useState(0);
+
+  /* alto real de la cabecera fija: las fechas se pegan justo debajo */
+  const measureTop = useCallback((el) => {
+    topRef.current = el;
+    if (topObs.current) { topObs.current.disconnect(); topObs.current = null; }
+    if (!el) return;
+    const read = () => setTopH(Math.round(el.getBoundingClientRect().height));
+    read();
+    if (typeof ResizeObserver !== "undefined") {
+      topObs.current = new ResizeObserver(read);
+      topObs.current.observe(el);
+    }
+  }, []);
 
   const showToast = useCallback((emoji, text) => {
     clearTimeout(toastTimer.current);
@@ -2806,17 +2820,26 @@ export default function App() {
   }
 
   return (
-    <div className="fin-app">
+    <div className="fin-app" style={{ "--topH": `${topH}px` }}>
       <style>{CSS}</style>
       <div className="fin-scroll">
         {/* ---------- encabezado ---------- */}
-        <div className="top-fixed">
+        <div className="top-fixed" ref={measureTop}>
         <header className="hdr">
           <button className="chip" onClick={() => { haptic(); setListOpen(true); }} aria-label="Cambiar de lista">
             {activeList.shared ? "👥 " : ""}{activeList.name} <Icon name="chevD" size={14} color="var(--txt2)" />
           </button>
           <div className="hdr-right">
             <button className="icon-btn" onClick={() => { haptic(); setSearchOpen(true); }} aria-label="Buscar"><Icon name="search" size={17} /></button>
+            {cloud.uid && (() => {
+              const unread = cloud.social.notifications.filter((n) => !n.read).length;
+              return (
+                <button className="icon-btn bell-wrap" onClick={() => { haptic(); setNotifOpen(true); }} aria-label="Notificaciones">
+                  <Icon name="bell" size={17} />
+                  {unread > 0 && <span className="badge-dot">{unread > 9 ? "9+" : unread}</span>}
+                </button>
+              );
+            })()}
             <button className="icon-btn" onClick={() => { haptic(); setPeriodOpen(true); }} aria-label={`Período: ${periodLabel}`}>
               <Icon name="cal" size={17} />
             </button>
@@ -2914,6 +2937,7 @@ export default function App() {
         onSubmit={(p) => { routedActions.editTransaction(editTx.id, p); showToast("✏️", "Movimiento actualizado"); }}
       />
       <PeriodSheet open={periodOpen} onClose={() => setPeriodOpen(false)} period={period} setPeriod={setPeriod} txs={listTxs} />
+      <NotificationsSheet open={notifOpen} onClose={() => setNotifOpen(false)} cloud={cloud} />
       <ListSheet open={listOpen} onClose={() => setListOpen(false)} data={viewData} canShare={!!cloud.uid}
         onSelect={(id) => actions.setActiveList(id)}
         onCreate={async (name, shared) => {
