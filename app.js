@@ -50,7 +50,7 @@ ${v}`}var _e=class extends Error{constructor({message:t,code:n,cause:a,name:i}){
 .fin-app{
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;
   background:var(--bg); color:var(--txt);
-  position:relative; width:100%; height:100dvh; min-height:100vh; overflow:hidden;
+  position:relative; width:100%; height:100%; min-height:100dvh; overflow:hidden;
   -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
   font-feature-settings:"tnum" 1;
 }
