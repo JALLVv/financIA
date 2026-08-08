@@ -20,12 +20,15 @@ const CSS = `
   --ease-ios:cubic-bezier(.32,.72,0,1);
   --spring:cubic-bezier(.34,1.4,.64,1);
 }
+/* la cadena de alturas viaja con la app, no sólo en el index.html: así el
+   100% de .fin-app siempre resuelve aunque el HTML en caché sea viejo */
+html,body,#root{height:100%;}
 .fin-app,.fin-app *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;}
 .fin-app{
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;
   background:var(--bg); color:var(--txt);
-  position:relative; width:100%; height:var(--appH, 100dvh); min-height:var(--appH, 100dvh); overflow:visible;
+  position:relative; width:100%; height:100%; overflow:visible;
   -webkit-font-smoothing:antialiased;
   font-feature-settings:"tnum" 1;
 }
@@ -829,6 +832,25 @@ function unlockBodyScroll() {
   if (el) el.style.overflowY = "";
 }
 
+/* Alto del teclado.
+
+   No se usa window.innerHeight: en iOS se queda con un valor viejo al volver
+   de segundo plano, y entonces la resta da un "teclado" de 30-60 px que no
+   existe. Eso elevaba la hoja y dejaba una franja vacía en la parte inferior,
+   de forma intermitente y sin que nada la corrigiera después.
+
+   documentElement.clientHeight es el alto del viewport de maquetación, el
+   mismo que resuelve el 100% de CSS, así que siempre concuerda con lo que se
+   está pintando. Por debajo de KB_MIN es ruido del sistema (barras, área
+   segura, redondeos), no un teclado. */
+const KB_MIN = 120;
+function keyboardHeight() {
+  const vv = typeof window !== "undefined" && window.visualViewport;
+  if (!vv) return 0;
+  const h = Math.round(document.documentElement.clientHeight - vv.height - vv.offsetTop);
+  return h >= KB_MIN ? h : 0;
+}
+
 /* Hoja modal estilo iOS con animación de cierre.
    Se eleva con el teclado (visualViewport) para que los campos no queden tapados. */
 function Sheet({ open, onClose, title, children, footer }) {
@@ -858,7 +880,7 @@ function Sheet({ open, onClose, title, children, footer }) {
     if (!mounted || typeof window === "undefined" || !window.visualViewport) return;
     const vv = window.visualViewport;
     let raf = null, downTimer = null, last = 0;
-    const measure = () => Math.max(0, Math.round(window.innerHeight - vv.height));
+    const measure = keyboardHeight;
     const commit = (v) => { last = v; setKb(v); };
     const apply = () => {
       raf = null;
@@ -938,7 +960,7 @@ function Overlay({ open, onClose, children }) {
     if (!mounted || typeof window === "undefined" || !window.visualViewport) return;
     const vv = window.visualViewport;
     let raf = null;
-    const apply = () => { raf = null; setKb(Math.max(0, Math.round(window.innerHeight - vv.height))); };
+    const apply = () => { raf = null; setKb(keyboardHeight()); };
     const onChange = () => { if (raf === null) raf = requestAnimationFrame(apply); };
     vv.addEventListener("resize", onChange);
     onChange();
@@ -2565,24 +2587,6 @@ export default function App() {
   const topRef = useRef(null);
   const topObs = useRef(null);
   const [topH, setTopH] = useState(0);
-  const [appH, setAppH] = useState(0);
-
-  /* alto real de la ventana: la app ocupa exactamente la pantalla en iOS.
-     También al volver de segundo plano (pageshow), o el valor se queda viejo
-     el resto de la sesión y la app acaba más corta que la pantalla. */
-  useEffect(() => {
-    const set = () => setAppH(Math.round(window.innerHeight));
-    set();
-    window.addEventListener("resize", set);
-    window.addEventListener("orientationchange", set);
-    window.addEventListener("pageshow", set);
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(set).catch(() => {});
-    return () => {
-      window.removeEventListener("resize", set);
-      window.removeEventListener("orientationchange", set);
-      window.removeEventListener("pageshow", set);
-    };
-  }, []);
 
   /* alto real de la cabecera fija: las fechas se pegan justo debajo */
   const measureTop = useCallback((el) => {
@@ -2920,7 +2924,7 @@ export default function App() {
   }
 
   return (
-    <div className="fin-app" style={{ "--topH": `${topH}px`, ...(appH ? { "--appH": `${appH}px` } : {}) }}>
+    <div className="fin-app" style={{ "--topH": `${topH}px` }}>
       <style>{CSS}</style>
       <div className="fin-scroll">
         {/* ---------- encabezado ---------- */}
