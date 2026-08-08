@@ -863,34 +863,26 @@ function unlockBodyScroll() {
   if (el) el.style.overflowY = "";
 }
 
-/* Alto del teclado, medido con visualViewport contra sí mismo.
+/* Alto del teclado: la reducción del viewport visual respecto a la ventana.
 
-   En el iPhone conviven tres alturas distintas y mezclarlas es lo que dejaba
-   la franja: window.innerHeight y visualViewport dan 844, pero
-   documentElement.clientHeight da 797 porque descuenta el área segura
-   superior (47 px). Restar una de otra inventaba 47 px de teclado.
+   iOS no cambia window.innerHeight al abrirse el teclado, sólo encoge
+   visualViewport, así que la resta da el teclado exacto. Y las dos siguen al
+   viewport cuando éste cambia de tamaño (las mediciones en el dispositivo lo
+   confirman: ambas pasaron de 844 a 797 a la vez), cosa que un máximo
+   recordado no hacía: se quedaba con el valor grande y elevaba la hoja de
+   más, dejando hueco debajo.
 
-   El alto del viewport visual sin teclado es su máximo observado; lo que
-   falte respecto a ese máximo es exactamente el teclado, sin mezclar nada.
-   Por debajo de KB_MIN es ruido del sistema, no un teclado, y por encima del
-   70% de la pantalla tampoco: así un valor erróneo nunca puede elevar la
-   hoja de más y dejar un hueco debajo. */
+   No se usa documentElement.clientHeight: descuenta el área segura superior
+   y pertenece a otro sistema de medida. Por debajo de KB_MIN es ruido del
+   sistema, y por encima del 70% de la pantalla no es un teclado. */
 const KB_MIN = 120;
-let vvMax = 0;
 function keyboardHeight() {
   const vv = typeof window !== "undefined" && window.visualViewport;
   if (!vv) return 0;
-  if (vv.height > vvMax) vvMax = vv.height;
-  const h = Math.round(vvMax - vv.height - vv.offsetTop);
-  if (h < KB_MIN) return 0;                    // ruido del sistema, no un teclado
-  return Math.min(h, Math.round(vvMax * 0.7)); // ningún teclado ocupa más
-}
-if (typeof window !== "undefined" && window.visualViewport) {
-  vvMax = window.visualViewport.height;
-  /* al girar cambia el alto de referencia */
-  window.addEventListener("orientationchange", () => {
-    setTimeout(() => { vvMax = window.visualViewport.height; }, 350);
-  });
+  const vh = window.innerHeight;
+  const h = Math.round(vh - vv.height - vv.offsetTop);
+  if (h < KB_MIN) return 0;                  // ruido del sistema, no un teclado
+  return Math.min(h, Math.round(vh * 0.7));  // ningún teclado ocupa más
 }
 
 /* Panel de diagnóstico: se abre con 5 toques en la palabra "Total" (o con

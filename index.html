@@ -11,7 +11,12 @@
   <link rel="apple-touch-icon" href="./icons/icon-180.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- "default" y no "black-translucent": con la barra translúcida iOS
+       entrega a veces un viewport de 797 px (844 menos la barra de estado)
+       pero lo coloca arriba, dejando 47 px muertos abajo — la franja. Con
+       "default" la barra la reserva el sistema y la pinta con el theme_color
+       del manifiesto (#16161A, el mismo fondo de la app). -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Finanzas">
   <link rel="preload" href="./fonts/nunito-latin.woff2" as="font" type="font/woff2" crossorigin>
   <style>
