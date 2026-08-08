@@ -228,6 +228,13 @@ input::placeholder{color:var(--txt3);}
   animation:sheetUp .32s var(--ease-ios) both;
   box-shadow:0 -20px 60px rgba(0,0,0,.5);
 }
+/* faldón: si la hoja sube sobre el teclado, su material continúa hasta el
+   borde inferior, así ningún desajuste puede verse como una franja vacía */
+.sheet::after{
+  content:""; position:absolute; left:-1px; right:-1px; top:100%; height:70vh;
+  background:var(--glass); border-left:1px solid var(--line2); border-right:1px solid var(--line2);
+  pointer-events:none;
+}
 .sheet.closing{animation:sheetDown .24s var(--ease-ios) both;}
 @keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
 @keyframes sheetDown{from{transform:none}to{transform:translateY(105%)}}
@@ -842,23 +849,34 @@ function unlockBodyScroll() {
   if (el) el.style.overflowY = "";
 }
 
-/* Alto del teclado.
+/* Alto del teclado, medido con visualViewport contra sí mismo.
 
-   No se usa window.innerHeight: en iOS se queda con un valor viejo al volver
-   de segundo plano, y entonces la resta da un "teclado" de 30-60 px que no
-   existe. Eso elevaba la hoja y dejaba una franja vacía en la parte inferior,
-   de forma intermitente y sin que nada la corrigiera después.
+   En el iPhone conviven tres alturas distintas y mezclarlas es lo que dejaba
+   la franja: window.innerHeight y visualViewport dan 844, pero
+   documentElement.clientHeight da 797 porque descuenta el área segura
+   superior (47 px). Restar una de otra inventaba 47 px de teclado.
 
-   documentElement.clientHeight es el alto del viewport de maquetación, el
-   mismo que resuelve el 100% de CSS, así que siempre concuerda con lo que se
-   está pintando. Por debajo de KB_MIN es ruido del sistema (barras, área
-   segura, redondeos), no un teclado. */
+   El alto del viewport visual sin teclado es su máximo observado; lo que
+   falte respecto a ese máximo es exactamente el teclado, sin mezclar nada.
+   Por debajo de KB_MIN es ruido del sistema, no un teclado, y por encima del
+   70% de la pantalla tampoco: así un valor erróneo nunca puede elevar la
+   hoja de más y dejar un hueco debajo. */
 const KB_MIN = 120;
+let vvMax = 0;
 function keyboardHeight() {
   const vv = typeof window !== "undefined" && window.visualViewport;
   if (!vv) return 0;
-  const h = Math.round(document.documentElement.clientHeight - vv.height - vv.offsetTop);
-  return h >= KB_MIN ? h : 0;
+  if (vv.height > vvMax) vvMax = vv.height;
+  const h = Math.round(vvMax - vv.height - vv.offsetTop);
+  if (h < KB_MIN) return 0;                    // ruido del sistema, no un teclado
+  return Math.min(h, Math.round(vvMax * 0.7)); // ningún teclado ocupa más
+}
+if (typeof window !== "undefined" && window.visualViewport) {
+  vvMax = window.visualViewport.height;
+  /* al girar cambia el alto de referencia */
+  window.addEventListener("orientationchange", () => {
+    setTimeout(() => { vvMax = window.visualViewport.height; }, 350);
+  });
 }
 
 /* Panel de diagnóstico: se abre con 5 toques en la palabra "Total" (o con
