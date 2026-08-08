@@ -24,7 +24,8 @@ const CSS = `
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;}
 .fin-app{
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;
-  background:var(--bg); color:var(--txt); position:fixed; inset:0; overflow:hidden;
+  background:var(--bg); color:var(--txt);
+  position:relative; width:100%; height:100dvh; min-height:100dvh; overflow:hidden;
   -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
   font-feature-settings:"tnum" 1;
 }
@@ -141,12 +142,15 @@ input::placeholder{color:var(--txt3);}
 /* ---------- transactions ---------- */
 .tx-section{margin-top:26px;}
 .date-hdr{
-  position:sticky; top:calc(var(--topH, 0px) + 24px); z-index:20;
+  position:sticky; top:calc(var(--topH, 0px) + 16px); z-index:20;
   display:flex; align-items:center; justify-content:space-between; gap:10px;
-  margin:16px -20px 8px; padding:8px 20px; background:var(--bg);
+  margin:16px 2px 8px; background:transparent; pointer-events:none;
 }
 .date-pill,.date-total{
-  background:var(--card2); border-radius:999px; padding:5px 13px; font-weight:700;
+  pointer-events:auto;
+  background:rgba(38,38,44,.9); backdrop-filter:blur(10px) saturate(150%);
+  -webkit-backdrop-filter:blur(10px) saturate(150%);
+  border-radius:999px; padding:5px 13px; font-weight:700;
   font-feature-settings:"tnum" 1; transition:transform .25s var(--spring);
 }
 .date-pill{font-size:12.5px; color:var(--txt2); letter-spacing:-.01em;}

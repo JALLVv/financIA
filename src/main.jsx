@@ -31,4 +31,9 @@ if (!window.storage) {
   };
 }
 
+/* el fondo del documento debe coincidir siempre con el de la app, aunque
+   el index.html en caché sea de una versión anterior (evita franjas) */
+document.documentElement.style.background = "#16161A";
+document.body.style.background = "#16161A";
+
 createRoot(document.getElementById("root")).render(<App />);
