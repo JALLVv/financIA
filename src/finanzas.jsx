@@ -11,12 +11,12 @@ import { cloudEnabled, supabase, fetchSocial, cloudApi, enablePush, disablePush,
 /* ----------------------- Tokens + CSS ----------------------- */
 const CSS = `
 :root{
-  --accent:#F54927; --accent-soft:rgba(245,73,39,.16);
-  --bg:#060608; --card:#141417; --card2:#1D1D21; --card3:#26262B;
-  --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.12);
-  --txt:#F5F5F7; --txt2:#9A9AA2; --txt3:#5D5D64;
-  --green:#32D74B; --red:#FF453A;
-  --glass:rgba(20,20,23,.68);
+  --accent:#E0603F; --accent-soft:rgba(224,96,63,.16);
+  --bg:#16161A; --card:#1E1E23; --card2:#26262C; --card3:#303037;
+  --line:rgba(255,255,255,.06); --line2:rgba(255,255,255,.11);
+  --txt:#F2F2F5; --txt2:#A0A0A8; --txt3:#6B6B74;
+  --green:#4FAE74; --red:#DE6058; --blue:#4E9BAE;
+  --glass:rgba(30,30,35,.72);
   --ease-ios:cubic-bezier(.32,.72,0,1);
   --spring:cubic-bezier(.34,1.4,.64,1);
 }
@@ -26,21 +26,27 @@ const CSS = `
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;
   background:var(--bg); color:var(--txt); min-height:100dvh; width:100%;
   -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-  font-feature-settings:"tnum" 1; overflow-x:hidden; position:relative;
+  font-feature-settings:"tnum" 1; overflow-x:clip; position:relative;
 }
 .fin-scroll{position:relative; z-index:1; padding:0 20px calc(120px + env(safe-area-inset-bottom)); max-width:520px; margin:0 auto;}
 button{font:inherit; color:inherit; border:none; background:none; padding:0; cursor:pointer;}
 input,select,textarea{font:inherit; color:inherit;}
 input::placeholder{color:var(--txt3);}
 
-/* ---------- header ---------- */
-.hdr{
-  position:sticky; top:0; z-index:40; display:flex; align-items:center; justify-content:space-between;
-  padding:calc(10px + env(safe-area-inset-top)) 4px 10px;
-  margin:0 -4px 4px; background:linear-gradient(var(--bg) 55%, transparent);
+/* ---------- cabecera fija (encabezado + balance + filtro) ---------- */
+.top-fixed{
+  position:sticky; top:0; z-index:40; background:var(--bg);
+  margin:0 -20px; padding:0 20px 2px;
 }
-.hdr::after{content:""; position:absolute; inset:0; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-  mask:linear-gradient(#000 60%,transparent); -webkit-mask:linear-gradient(#000 60%,transparent); z-index:-1;}
+.top-fixed::after{
+  content:""; position:absolute; left:0; right:0; top:100%; height:26px; pointer-events:none;
+  background:linear-gradient(var(--bg), rgba(22,22,26,0));
+}
+.hdr{
+  position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between;
+  padding:calc(10px + env(safe-area-inset-top)) 4px 10px;
+  margin:0 -4px 4px;
+}
 .chip{
   display:inline-flex; align-items:center; gap:6px; padding:9px 14px; border-radius:22px;
   background:var(--glass); border:1px solid var(--line);
@@ -54,12 +60,12 @@ input::placeholder{color:var(--txt3);}
   backdrop-filter:blur(20px) saturate(160%); -webkit-backdrop-filter:blur(20px) saturate(160%);
   transition:transform .25s var(--spring), background .2s;
 }
-.icon-btn:active{transform:scale(.9); background:var(--card2);}
+.icon-btn:active{transform:scale(.88); background:var(--card2);}
 .hdr-right{display:flex; gap:10px;}
 .avatar-mini{width:40px;height:40px;border-radius:50%;object-fit:cover;display:block;}
 
 /* ---------- balance ---------- */
-.balance-wrap{text-align:center; padding:26px 0 8px; animation:rise .5s var(--ease-ios) both;}
+.balance-wrap{text-align:center; padding:18px 0 12px; animation:rise .5s var(--ease-ios) both;}
 .balance-label{font-size:14px; font-weight:600; color:var(--txt2); letter-spacing:.06em; text-transform:uppercase;}
 .balance-row{display:flex; align-items:center; justify-content:center; gap:12px; margin-top:8px;}
 .balance-num{font-size:clamp(50px,14vw,68px); font-weight:900; letter-spacing:-.045em; line-height:1.05; display:inline-block;}
@@ -76,28 +82,23 @@ input::placeholder{color:var(--txt3);}
 @keyframes rise{from{opacity:0; transform:translateY(14px)}to{opacity:1; transform:none}}
 
 /* ---------- segmented ---------- */
-.seg{--segpad:3px; position:relative; display:flex; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:var(--segpad); margin-top:20px;}
-.seg.mini{--segpad:2px; max-width:232px; margin:18px auto 0; border-radius:14px;}
-.seg.mini .seg-thumb{border-radius:11px;}
-.seg.mini .seg-btn{padding:6px 0;}
-.seg.mini .seg-sub{font-size:13px;}
-.seg-thumb{position:absolute; top:var(--segpad); bottom:var(--segpad); border-radius:13px; background:var(--card3);
-  box-shadow:0 4px 14px rgba(0,0,0,.45), inset 0 0 0 1px var(--line2);
-  transition:transform .35s var(--ease-ios), width .35s var(--ease-ios);}
-.seg-btn{flex:1; position:relative; z-index:1; padding:11px 0; text-align:center; font-weight:600; font-size:14px; color:var(--txt2); border-radius:13px; transition:color .25s;}
+.seg{--segpad:3px; position:relative; display:flex; background:var(--card); border:1px solid var(--line); border-radius:999px; padding:var(--segpad); margin-top:20px;}
+.seg.mini{--segpad:3px; max-width:246px; margin:16px auto 0;}
+.seg.mini .seg-btn{padding:7px 0;}
+.seg-thumb{position:absolute; top:var(--segpad); bottom:var(--segpad); border-radius:999px; background:var(--card3);
+  box-shadow:inset 0 0 0 1px var(--line2);
+  transition:transform .4s var(--spring), width .35s var(--ease-ios);}
+.seg-btn{flex:1; position:relative; z-index:1; padding:11px 0; display:flex; align-items:center; justify-content:center; gap:7px;
+  font-weight:600; font-size:14px; color:var(--txt2); border-radius:999px; transition:color .25s, transform .25s var(--spring);}
 .seg-btn.on{color:var(--txt);}
-.seg-sub{display:block; font-size:15.5px; font-weight:700; margin-top:0; font-feature-settings:"tnum" 1; letter-spacing:-.03em;}
-.seg-sub.exp{color:var(--red);} .seg-sub.inc{color:var(--green);}
+.seg-btn:active{transform:scale(.96);}
+.seg-sub{display:flex; align-items:center; gap:7px; font-size:17px; font-weight:800; color:var(--txt); font-feature-settings:"tnum" 1; letter-spacing:-.03em;}
+.seg-sign{width:20px; height:20px; border-radius:50%; display:grid; place-items:center; flex:none; transition:transform .3s var(--spring);}
+.seg-sign svg{display:block;}
+.seg-sign.exp{background:var(--red);} .seg-sign.inc{background:var(--green);}
+.seg-btn.on .seg-sign{transform:scale(1.08);}
 
 /* ---------- period pill ---------- */
-.period-btn{
-  margin:14px auto 0; display:flex; align-items:center; gap:6px; padding:8px 16px; border-radius:20px;
-  background:var(--card); border:1px solid var(--line); font-size:14px; font-weight:600; color:var(--txt2);
-  transition:transform .25s var(--spring), border-color .2s;
-}
-.period-btn:active{transform:scale(.95);}
-.period-btn .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);}
-
 /* ---------- chart ---------- */
 .chart-section{margin-top:26px; animation:rise .5s var(--ease-ios) both;}
 .section-title{font-size:13px; font-weight:700; color:var(--txt3); letter-spacing:.08em; text-transform:uppercase; margin:0 4px 10px;}
@@ -111,12 +112,12 @@ input::placeholder{color:var(--txt3);}
   transition:height .7s cubic-bezier(.22,1,.36,1), background .25s, transform .25s var(--spring), border-color .25s;
   will-change:height;
 }
-.bar .b-emoji,.bar .b-amt{transition:opacity .4s ease .3s;}
-.bar.pre .b-emoji,.bar.pre .b-amt{opacity:0; transition:none;}
+.bar .b-emoji,.bar .b-amt{transition:opacity .4s ease .3s, transform .4s var(--spring) .3s;}
+.bar.pre .b-emoji,.bar.pre .b-amt{opacity:0; transform:scale(.6); transition:none;}
 .bar:active{transform:scale(.96);}
-.bar.sel{background:#3A3A40; border-color:var(--line2); box-shadow:0 6px 18px rgba(0,0,0,.4);}
-.bar .b-emoji{font-size:24px; line-height:1;}
-.bar .b-amt{font-size:11.5px; font-weight:700; color:var(--txt2); margin-top:3px; white-space:nowrap; letter-spacing:-.03em;}
+.bar.sel{background:var(--card3); border-color:var(--line2); box-shadow:0 6px 18px rgba(0,0,0,.4);}
+.bar .b-emoji{font-size:25px; line-height:1;}
+.bar .b-amt{font-size:14px; font-weight:800; color:var(--txt); margin-top:4px; white-space:nowrap; letter-spacing:-.03em;}
 .bar-detail{
   margin-top:12px; background:var(--card); border:1px solid var(--line); border-radius:20px; padding:14px 16px;
   display:flex; align-items:center; gap:12px; animation:popIn .3s var(--spring) both;
@@ -132,23 +133,32 @@ input::placeholder{color:var(--txt3);}
 
 /* ---------- transactions ---------- */
 .tx-section{margin-top:26px;}
-.date-hdr{font-size:13px; font-weight:700; color:var(--txt3); margin:18px 4px 8px; font-feature-settings:"tnum" 1;}
-.tx-card{background:var(--card); border:1px solid var(--line); border-radius:22px; overflow:hidden;}
-.tx-row{
-  display:flex; align-items:center; gap:12px; padding:12px 14px; width:100%; text-align:left;
-  transition:background .15s; position:relative;
+.date-hdr{display:flex; align-items:center; justify-content:space-between; gap:10px; margin:20px 2px 6px;}
+.date-pill{
+  background:var(--card2); border-radius:999px; padding:5px 13px; font-size:12.5px; font-weight:700;
+  color:var(--txt2); font-feature-settings:"tnum" 1; letter-spacing:-.01em;
 }
-.tx-row:not(:last-child)::after{content:""; position:absolute; left:64px; right:0; bottom:0; height:1px; background:var(--line);}
-.tx-row:active{background:var(--card2);}
+.date-pill{transition:transform .25s var(--spring);}
+.date-pill:active{transform:scale(.94);}
+.date-total{font-size:13.5px; font-weight:800; letter-spacing:-.03em; font-feature-settings:"tnum" 1; padding-right:4px;}
+.date-total.pos{color:var(--green);} .date-total.neg{color:var(--txt);} .date-total.zero{color:var(--txt3);}
+.tx-card{border-radius:18px; overflow:hidden;}
+.tx-row{
+  display:flex; align-items:center; gap:12px; padding:9px 8px; width:100%; text-align:left; border-radius:16px;
+  transition:background .18s, transform .25s var(--spring); position:relative;
+  animation:rowIn .34s var(--ease-ios) both;
+}
+.tx-row:active{background:var(--card); transform:scale(.985);}
 .tx-mid{flex:1; min-width:0;}
-.tx-cat{font-size:13px; color:var(--txt2); font-weight:500;}
+.tx-cat{font-size:12.5px; color:var(--txt2); font-weight:600; line-height:1.15;}
 .tx-author{color:var(--accent); font-weight:800;}
-.tx-desc{font-size:15px; font-weight:700; margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.tx-desc{font-size:15px; font-weight:700; margin-top:0; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+@keyframes rowIn{from{opacity:0; transform:translateY(7px)}to{opacity:1; transform:none}}
 .tx-amt{font-weight:700; font-size:15px; font-feature-settings:"tnum" 1; white-space:nowrap; letter-spacing:-.03em;}
 .tx-amt.inc{color:var(--green);} .tx-amt.exp{color:var(--txt);}
 .tx-badge{font-size:10px; font-weight:700; color:var(--txt3); text-align:right; margin-top:2px;}
 .content-swap{animation:swap .3s var(--ease-ios) both;}
-@keyframes swap{from{opacity:0; transform:translateY(10px)}to{opacity:1; transform:none}}
+@keyframes swap{from{opacity:0; transform:translateY(7px)}to{opacity:1; transform:none}}
 
 /* ---------- empty ---------- */
 .empty{
@@ -166,9 +176,11 @@ input::placeholder{color:var(--txt3);}
   width:62px; height:62px; border-radius:50%;
   background:var(--accent);
   box-shadow:0 8px 22px rgba(0,0,0,.4);
-  display:grid; place-items:center; transition:transform .3s var(--spring), box-shadow .3s;
+  display:grid; place-items:center; transition:transform .34s var(--spring), box-shadow .3s;
+  animation:fabIn .45s var(--spring) both .15s;
 }
-.fab:active{transform:scale(.88); box-shadow:0 4px 12px rgba(0,0,0,.3);}
+@keyframes fabIn{from{opacity:0; transform:scale(.4)}to{opacity:1; transform:none}}
+.fab:active{transform:scale(.88) rotate(-10deg); box-shadow:0 4px 12px rgba(0,0,0,.3);}
 
 /* ---------- sheets ---------- */
 .sheet-backdrop{
@@ -218,7 +230,7 @@ input::placeholder{color:var(--txt3);}
 }
 .type-btn.exp.on{background:rgba(255,69,58,.14); color:var(--red); border-color:rgba(255,69,58,.4);}
 .type-btn.inc.on{background:rgba(50,215,75,.12); color:var(--green); border-color:rgba(50,215,75,.4);}
-.type-btn.tr.on{background:rgba(48,176,199,.14); color:#30B0C7; border-color:rgba(48,176,199,.4);}
+.type-btn.tr.on{background:rgba(78,155,174,.14); color:var(--blue); border-color:rgba(78,155,174,.4);}
 .form-pills{display:flex; flex-wrap:nowrap; gap:8px; overflow-x:auto; padding:2px 2px 10px; scrollbar-width:none;}
 .form-pills::-webkit-scrollbar{display:none;}
 .form-pills .dd{flex:none;}
@@ -237,7 +249,7 @@ input::placeholder{color:var(--txt3);}
 .mode-thumb{position:absolute; top:2px; bottom:2px; border-radius:9px; transition:transform .32s var(--ease-ios), background .25s;}
 .mode-thumb.expense{background:var(--red);}
 .mode-thumb.income{background:var(--green);}
-.mode-thumb.transfer{background:#30B0C7;}
+.mode-thumb.transfer{background:var(--blue);}
 .mode-btn{flex:1; position:relative; z-index:1; padding:5px 0; display:grid; place-items:center; color:var(--txt2); border-radius:9px; transition:color .25s;}
 .mode-btn svg{display:block;}
 .mode-btn.on{color:#fff;}
@@ -251,7 +263,7 @@ input::placeholder{color:var(--txt3);}
   transition:all .25s var(--ease-ios); white-space:nowrap;
 }
 .cat-chip.on{background:var(--accent-soft); border-color:rgba(245,73,39,.45); color:#FF8A6B;}
-.cat-chip:active{transform:scale(.95);}
+.cat-chip:active{transform:scale(.93);}
 .cat-scroll{display:flex; gap:12px; overflow-x:auto; padding:6px 2px 10px; scrollbar-width:none;}
 .cat-scroll::-webkit-scrollbar{display:none;}
 .cat-pick{flex:none; width:66px; text-align:center; transition:transform .25s var(--spring);}
@@ -280,7 +292,7 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
   padding:12px 6px; border-radius:16px; background:var(--card); border:1px solid var(--line); text-align:center;
   transition:all .25s var(--ease-ios);
 }
-.month-cell:active{transform:scale(.94);}
+.month-cell:active{transform:scale(.92);}
 .month-cell.on{border-color:var(--accent); background:var(--accent-soft);}
 .month-cell.dim{opacity:.45;}
 .m-name{font-weight:700; font-size:14px;}
@@ -291,9 +303,10 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 .step-btn{width:34px;height:34px;border-radius:50%;background:var(--card2);display:grid;place-items:center;color:var(--txt2);transition:transform .25s var(--spring);}
 .step-btn:active{transform:scale(.88);}
 .row-pick{
-  display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:13px 16px; position:relative; transition:background .15s;
+  display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:13px 16px; position:relative;
+  transition:background .15s, transform .25s var(--spring);
 }
-.row-pick:active{background:var(--card2);}
+.row-pick:active{background:var(--card2); transform:scale(.99);}
 .row-pick:not(:last-child)::after{content:""; position:absolute; left:16px; right:0; bottom:0; height:1px; background:var(--line);}
 .row-pick .r-main{flex:1; min-width:0; font-weight:600; font-size:15px;}
 .row-pick .r-sub{font-size:12.5px; color:var(--txt2); font-weight:600; margin-top:1px;}
@@ -347,10 +360,10 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 .avatar-edit{position:absolute; bottom:2px; right:2px; width:28px; height:28px; border-radius:50%; background:var(--accent); display:grid; place-items:center; border:3px solid var(--bg);}
 .name-input{background:none; border:none; outline:none; text-align:center; font-size:22px; font-weight:800; width:100%; margin-top:12px;}
 .disclosure{background:var(--card); border:1px solid var(--line); border-radius:20px; margin-bottom:12px; overflow:hidden;}
-.disc-head{display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:13px 16px; transition:background .15s;}
-.disc-head:active{background:var(--card2);}
+.disc-head{display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:13px 16px; transition:background .15s, transform .25s var(--spring);}
+.disc-head:active{background:var(--card2); transform:scale(.99);}
 .disc-title{flex:1; font-weight:700; font-size:15.5px;}
-.chev{color:var(--txt3); transition:transform .35s var(--ease-ios);}
+.chev{color:var(--txt3); transition:transform .4s var(--spring);}
 .chev.open{transform:rotate(90deg);}
 .disc-body{border-top:1px solid var(--line); animation:discIn .26s var(--ease-ios) both; overflow:hidden;}
 @keyframes discIn{from{opacity:0; transform:translateY(-6px)}to{opacity:1; transform:none}}
@@ -383,12 +396,14 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
   box-shadow:0 10px 30px rgba(0,0,0,.5); animation:toastIn .45s var(--spring) both; display:flex; align-items:center; gap:8px;
 }
 @keyframes toastIn{from{opacity:0; transform:translate(-50%,-18px) scale(.9)}to{opacity:1; transform:translate(-50%,0)}}
+@keyframes toastOut{from{opacity:1; transform:translate(-50%,0)}to{opacity:0; transform:translate(-50%,-14px) scale(.94)}}
+.toast.out{animation:toastOut .28s var(--ease-ios) both;}
 
 .spin{width:26px;height:26px;border-radius:50%;border:3px solid var(--card3);border-top-color:var(--accent);animation:sp 1s linear infinite;margin:40vh auto 0;}
 @keyframes sp{to{transform:rotate(360deg)}}
 
 /* ---------- social ---------- */
-.avatar-sm{border-radius:50%; background:#2E2E33; display:grid; place-items:center; font-weight:800; color:var(--txt2); overflow:hidden; flex:none;}
+.avatar-sm{border-radius:50%; background:var(--card3); display:grid; place-items:center; font-weight:800; color:var(--txt2); overflow:hidden; flex:none;}
 .avatar-sm img{width:100%; height:100%; object-fit:cover;}
 .bell-wrap{position:relative;}
 .badge-dot{
@@ -396,7 +411,7 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
   background:var(--red); color:#fff; font-size:10.5px; font-weight:800;
   display:grid; place-items:center; padding:0 4px; border:2px solid var(--bg); z-index:1;
 }
-.notif-row{display:flex; gap:12px; padding:13px 14px; align-items:flex-start; position:relative;}
+.notif-row{display:flex; gap:12px; padding:13px 14px; align-items:flex-start; position:relative; animation:rowIn .34s var(--ease-ios) both;}
 .notif-row:not(:last-child)::after{content:""; position:absolute; left:64px; right:0; bottom:0; height:1px; background:var(--line);}
 .notif-main{flex:1; min-width:0;}
 .notif-title{font-size:14.5px; font-weight:700; line-height:1.35;}
@@ -417,7 +432,7 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 .switch.on{background:var(--green);}
 .switch::after{
   content:""; position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:50%;
-  background:#fff; transition:transform .25s var(--ease-ios); box-shadow:0 2px 5px rgba(0,0,0,.3);
+  background:#fff; transition:transform .34s var(--spring); box-shadow:0 2px 5px rgba(0,0,0,.3);
 }
 .switch.on::after{transform:translateX(20px);}
 
@@ -432,7 +447,7 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 `;
 
 /* ----------------------- Utilidades ----------------------- */
-const ACCENT = "#F54927";
+const ACCENT = "#E0603F";
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 const pad2 = (n) => String(n).padStart(2, "0");
 const toStr = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -452,12 +467,15 @@ const fmt = (n) => {
   if (cents % 10 === 0) return money1.format(v);
   return money2.format(v);
 };
+const stripCur = (t) => t.replace("$", "").trim();
 const fmtShort = (n) => {
   const a = Math.abs(n);
   if (a >= 1000000) return "$" + (a / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
   if (a >= 10000) return "$" + (a / 1000).toFixed(1).replace(/\.0$/, "") + "k";
   return fmt(a);
 };
+/* mismo formato corto pero sin el símbolo de moneda */
+const fmtShortPlain = (n) => stripCur(fmtShort(n));
 
 const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const MONTHS_S = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
@@ -545,7 +563,7 @@ function hslToRgb(h, s, l) {
 }
 const toHex = (r, g, b) => "#" + [r, g, b].map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join("").toUpperCase();
 
-const FALLBACK_COLORS = ["#FF9F0A","#0A84FF","#32D74B","#FF453A","#BF5AF2","#64D2FF","#FFD60A","#FF6482","#30B0C7","#AC8E68"];
+const FALLBACK_COLORS = ["#D99A47","#5B90C9","#5FAE79","#D66A62","#A177C4","#6FB6C9","#D4BC57","#D0798E","#5EA5AF","#A88E6E"];
 function colorFromEmoji(emoji) {
   try {
     const c = document.createElement("canvas");
@@ -565,7 +583,7 @@ function colorFromEmoji(emoji) {
     }
     if (n < 10) throw new Error("sin pixeles");
     let [h, s, l] = rgbToHsl(r / n, g / n, b / n);
-    s = Math.max(s, 0.6); l = Math.min(Math.max(l, 0.52), 0.63);
+    s = Math.min(Math.max(s, 0.34), 0.5); l = Math.min(Math.max(l, 0.52), 0.62);
     const [R, G, B] = hslToRgb(h, s, l);
     return toHex(R, G, B);
   } catch (e) {
@@ -588,12 +606,12 @@ function defaultData() {
     activeListId: listId,
     lists: [{ id: listId, name: "Personal" }],
     categories: [
-      mk("Comida", "🍔", "#FF9F0A"),
-      mk("Transporte", "🚗", "#0A84FF"),
-      mk("Hogar", "🏠", "#AC8E68"),
-      mk("Compras", "🛍️", "#FF6482"),
-      mk("Salud", "💊", "#FF453A"),
-      mk("Sueldo", "💼", "#98989F"),
+      mk("Comida", "🍔", "#D99A47"),
+      mk("Transporte", "🚗", "#5B90C9"),
+      mk("Hogar", "🏠", "#A88E6E"),
+      mk("Compras", "🛍️", "#D0798E"),
+      mk("Salud", "💊", "#D66A62"),
+      mk("Sueldo", "💼", "#9A9AA4"),
     ],
     transactions: [],
     recurring: [],
@@ -939,7 +957,7 @@ function Overlay({ open, onClose, children }) {
 /* tinte suave del color (33 = 20% alfa) para que resalte el emoji */
 const EmojiBubble = memo(function EmojiBubble({ emoji, color, size = 44, fontSize }) {
   return (
-    <div className="ebubble" style={{ width: size, height: size, fontSize: fontSize || size * 0.52, background: `${color}33` }}>
+    <div className="ebubble" style={{ width: size, height: size, fontSize: fontSize || size * 0.52, background: `${color}59` }}>
       <span style={{ transform: "translateY(1px)" }}>{emoji}</span>
     </div>
   );
@@ -967,8 +985,17 @@ function EmptyState({ emoji, title, sub }) {
 }
 
 function Toast({ msg }) {
-  if (!msg) return null;
-  return <div className="toast" key={msg.id}><span>{msg.emoji}</span>{msg.text}</div>;
+  const [shown, setShown] = useState(msg);
+  const [out, setOut] = useState(false);
+  useEffect(() => {
+    if (msg) { setShown(msg); setOut(false); return; }
+    if (!shown) return;
+    setOut(true);
+    const t = setTimeout(() => { setShown(null); setOut(false); }, 280);
+    return () => clearTimeout(t);
+  }, [msg]);
+  if (!shown) return null;
+  return <div className={`toast ${out ? "out" : ""}`} key={shown.id}><span>{shown.emoji}</span>{shown.text}</div>;
 }
 
 /* Interruptor estilo iPhone */
@@ -1058,7 +1085,7 @@ const BarChart = memo(function BarChart({ groups, type, onSelect, selectedId, an
               aria-label={`${g.cat.name}: ${fmt(g.total)}`}
             >
               <span className="b-emoji">{g.cat.emoji}</span>
-              <span className="b-amt">{fmtShort(g.total)}</span>
+              <span className="b-amt">{fmtShortPlain(g.total)}</span>
             </button>
           </div>
         );
@@ -1068,10 +1095,11 @@ const BarChart = memo(function BarChart({ groups, type, onSelect, selectedId, an
 });
 
 /* ----------------------- Fila de transacción ----------------------- */
-const TxRow = memo(function TxRow({ tx, cat, onPress, showList, listName }) {
+const TxRow = memo(function TxRow({ tx, cat, onPress, showList, listName, index = 0 }) {
   const inc = tx.type === "income";
   return (
-    <button className="tx-row" onClick={() => onPress && onPress(tx)}>
+    <button className="tx-row" style={{ animationDelay: `${Math.min(index, 10) * 26}ms` }}
+      onClick={() => onPress && onPress(tx)}>
       <EmojiBubble emoji={cat.emoji} color={cat.color} size={44} />
       <div className="tx-mid">
         <div className="tx-cat">
@@ -1114,20 +1142,28 @@ function GroupedTxList({ txs, catMap, onPress, listMap, showList, animKey }) {
     return [...map.entries()];
   }, [txs, limit]);
 
-  const fallbackCat = { name: "Sin categoría", emoji: "❓", color: "#5D5D64" };
+  const fallbackCat = { name: "Sin categoría", emoji: "❓", color: "#6B6B74" };
   return (
     <div className="content-swap" key={animKey}>
-      {groups.map(([date, items]) => (
-        <div key={date}>
-          <div className="date-hdr">{fmtDate(date)}</div>
-          <div className="tx-card">
-            {items.map((t) => (
-              <TxRow key={t.id} tx={t} cat={catMap.get(t.categoryId) || fallbackCat}
-                onPress={onPress} showList={showList} listName={showList && listMap ? (listMap.get(t.listId) || {}).name : ""} />
-            ))}
+      {groups.map(([date, items], gi) => {
+        const dayTotal = items.reduce((s2, t) => s2 + (t.type === "income" ? t.amount : -t.amount), 0);
+        const cls = dayTotal > 0.004 ? "pos" : dayTotal < -0.004 ? "neg" : "zero";
+        const sign = dayTotal > 0.004 ? "+" : dayTotal < -0.004 ? "−" : "";
+        return (
+          <div key={date}>
+            <div className="date-hdr">
+              <span className="date-pill">{fmtDate(date)}</span>
+              <span className={`date-total ${cls}`}>{sign}{fmt(Math.abs(dayTotal))}</span>
+            </div>
+            <div className="tx-card">
+              {items.map((t, ri) => (
+                <TxRow key={t.id} tx={t} cat={catMap.get(t.categoryId) || fallbackCat} index={gi * 3 + ri}
+                  onPress={onPress} showList={showList} listName={showList && listMap ? (listMap.get(t.listId) || {}).name : ""} />
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
       {txs.length > limit && <div ref={sentinel} style={{ height: 40 }} />}
     </div>
   );
@@ -1145,7 +1181,7 @@ function CategoryFormSheet({ open, onClose, onSave, listName, initial }) {
     }
   }, [open, initial]);
 
-  const autoColor = useMemo(() => (emoji ? colorFromEmoji(emoji) : "#3A3A40"), [emoji]);
+  const autoColor = useMemo(() => (emoji ? colorFromEmoji(emoji) : "#6B6B74"), [emoji]);
   const valid = name.trim().length > 0 && emoji.length > 0;
 
   return (
@@ -1164,7 +1200,7 @@ function CategoryFormSheet({ open, onClose, onSave, listName, initial }) {
           aria-label="Emoji de la categoría"
           placeholder="+"
           onChange={(e) => { const g = firstGrapheme(e.target.value); setEmoji(g); if (g) haptic(4); }}
-          style={{ background: emoji ? `${autoColor}33` : "var(--card2)" }}
+          style={{ background: emoji ? `${autoColor}59` : "var(--card2)" }}
         />
         <div style={{ fontSize: 12.5, color: "var(--txt2)", marginTop: 10, fontWeight: 600 }}>
           Toca y elige un emoji con tu teclado · Lista: {listName}
@@ -1667,7 +1703,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
               </div>
             );
           })()}
-          <span className="amount-cur" style={{ color: type === "income" ? "var(--green)" : isTransfer ? "#30B0C7" : "var(--txt3)" }}>$</span>
+          <span className="amount-cur" style={{ color: type === "income" ? "var(--green)" : isTransfer ? "var(--blue)" : "var(--txt3)" }}>$</span>
           <input
             className="amount-input" inputMode="decimal" placeholder="0" aria-label="Monto"
             value={amount}
@@ -1675,7 +1711,7 @@ function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, on
               const v = e.target.value.replace(/[^0-9.,]/g, "");
               if ((v.match(/[.,]/g) || []).length <= 1) setAmount(v);
             }}
-            style={{ color: type === "expense" ? "var(--txt)" : type === "income" ? "var(--green)" : "#30B0C7", width: `${Math.max((amount || "0").length, 1) + 0.15}ch` }}
+            style={{ color: type === "expense" ? "var(--txt)" : type === "income" ? "var(--green)" : "var(--blue)", width: `${Math.max((amount || "0").length, 1) + 0.15}ch` }}
           />
         </div>
 
@@ -2042,8 +2078,12 @@ function PromptSheet({ open, onClose, title, placeholder, initial = "", confirmL
 }
 
 /* ----------------------- Perfil ----------------------- */
-function GrayIconBubble({ emoji }) {
-  return <div className="ebubble" style={{ width: 40, height: 40, fontSize: 20, background: "#2E2E33" }}>{emoji}</div>;
+function GrayIconBubble({ emoji, children }) {
+  return (
+    <div className="ebubble" style={{ width: 40, height: 40, fontSize: 20, background: "var(--card3)", color: "var(--txt)" }}>
+      {children || emoji}
+    </div>
+  );
 }
 
 function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedListIds }) {
@@ -2056,12 +2096,11 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
   const [friendEmail, setFriendEmail] = useState("");
   const [inviteList, setInviteList] = useState(null); // lista compartida a la que invitar
   const [pushOn, setPushOn] = useState(false);
+  const [notifSheet, setNotifSheet] = useState(false);
   const fileRef = useRef(null);
 
   const privColor = useMemo(() => colorFromEmoji("🤫"), []);
   const shareColor = useMemo(() => colorFromEmoji("👥"), []);
-  const bellColor = useMemo(() => colorFromEmoji("🔔"), []);
-  const accColor = useMemo(() => colorFromEmoji("⤵️"), []);
 
   useEffect(() => {
     let alive = true;
@@ -2134,6 +2173,23 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
           )}
         </div>
 
+        {/* -------- Notificaciones -------- */}
+        {cloud.enabled && cloud.uid && (() => {
+          const unread = cloud.social.notifications.filter((n) => !n.read).length;
+          return (
+            <div className="disclosure">
+              <button className="disc-head" onClick={() => { haptic(); setNotifSheet(true); }} aria-label="Notificaciones">
+                <span className="bell-wrap" style={{ display: "grid" }}>
+                  <GrayIconBubble><Icon name="bell" size={19} /></GrayIconBubble>
+                  {unread > 0 && <span className="badge-dot">{unread > 9 ? "9+" : unread}</span>}
+                </span>
+                <span className="disc-title">Notificaciones</span>
+                <span className="chev"><Icon name="chevR" size={16} /></span>
+              </button>
+            </div>
+          );
+        })()}
+
         {/* -------- Amigos -------- */}
         <div className="disclosure">
           <button className="disc-head" onClick={() => toggle("friends")} aria-expanded={open === "friends"}>
@@ -2190,7 +2246,7 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
         {cloud.enabled && cloud.uid && (
           <div className="disclosure">
             <div className="disc-head" style={{ cursor: "default" }}>
-              <EmojiBubble emoji="🔔" color={bellColor} size={40} fontSize={20} />
+              <GrayIconBubble emoji="🔔" />
               <span className="disc-title">Activar notificaciones</span>
               <Switch on={pushOn} onToggle={togglePush} label="Activar notificaciones" />
             </div>
@@ -2200,7 +2256,7 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
         {/* -------- Acumulado (interruptor) -------- */}
         <div className="disclosure">
           <div className="disc-head" style={{ cursor: "default" }}>
-            <EmojiBubble emoji="⤵️" color={accColor} size={40} fontSize={20} />
+            <GrayIconBubble emoji="⤵️" />
             <span className="disc-title">Acumulado</span>
             <Switch on={!data.settings || data.settings.accumulate !== false}
               onToggle={() => actions.setSetting({ accumulate: !(!data.settings || data.settings.accumulate !== false) })}
@@ -2331,8 +2387,8 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
               {data.recurring.map((r) => {
                 const isTr = r.type === "transfer";
                 const c = isTr
-                  ? { emoji: "🔁", color: "#30B0C7", name: "Transferencia" }
-                  : catMap.get(r.categoryId) || { emoji: "❓", color: "#5D5D64", name: "—" };
+                  ? { emoji: "🔁", color: "#4E9BAE", name: "Transferencia" }
+                  : catMap.get(r.categoryId) || { emoji: "❓", color: "#6B6B74", name: "—" };
                 return (
                   <SwipeRow key={r.id} deleteLabel="Eliminar recurrencia" onDelete={() => {
                     setConfirm({
@@ -2351,7 +2407,7 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
                       <EmojiBubble emoji={c.emoji} color={c.color} size={40} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {isTr ? "Transferencia" : (r.description || c.name)} · <span style={{ color: r.type === "income" ? "var(--green)" : isTr ? "#30B0C7" : "var(--red)" }}>{r.type === "income" ? "+" : isTr ? "⇄" : "−"}{fmt(r.amount)}</span>
+                          {isTr ? "Transferencia" : (r.description || c.name)} · <span style={{ color: r.type === "income" ? "var(--green)" : isTr ? "var(--blue)" : "var(--red)" }}>{r.type === "income" ? "+" : isTr ? "⇄" : "−"}{fmt(r.amount)}</span>
                         </div>
                         <div style={{ fontSize: 12, color: "var(--txt2)", fontWeight: 600, marginTop: 1 }}>
                           {freqLabel(r.frequency)} · {isTr ? `${listName(r.listId)} → ${listName(r.toListId)}` : listName(r.listId)} · próx. {r.nextDate ? fmtDate(r.nextDate) : "—"}
@@ -2403,6 +2459,7 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
       <ConfirmSheet open={!!confirm} onClose={() => setConfirm(null)} title={confirm ? confirm.title : ""} message={confirm ? confirm.message : ""}
         confirmLabel={confirm && confirm.label ? confirm.label : "Eliminar"} onConfirm={() => confirm && confirm.fn()} />
       <InviteSheet open={!!inviteList} onClose={() => setInviteList(null)} list={inviteList} cloud={cloud} />
+      <NotificationsSheet open={notifSheet} onClose={() => setNotifSheet(false)} cloud={cloud} />
     </>
   );
 }
@@ -2423,7 +2480,6 @@ export default function App() {
   const [listOpen, setListOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
   const [photoView, setPhotoView] = useState(null); // foto de movimiento a pantalla completa
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
@@ -2716,7 +2772,7 @@ export default function App() {
       g.total += t.amount; g.count++;
       m.set(t.categoryId, g);
     }
-    const fallback = { name: "Sin categoría", emoji: "❓", color: "#5D5D64" };
+    const fallback = { name: "Sin categoría", emoji: "❓", color: "#6B6B74" };
     return [...m.entries()]
       .map(([cid, g]) => ({ cat: catMap.get(cid) || { ...fallback, id: cid }, ...g }))
       .sort((a, b) => b.total - a.total);
@@ -2754,21 +2810,16 @@ export default function App() {
       <style>{CSS}</style>
       <div className="fin-scroll">
         {/* ---------- encabezado ---------- */}
+        <div className="top-fixed">
         <header className="hdr">
           <button className="chip" onClick={() => { haptic(); setListOpen(true); }} aria-label="Cambiar de lista">
             {activeList.shared ? "👥 " : ""}{activeList.name} <Icon name="chevD" size={14} color="var(--txt2)" />
           </button>
           <div className="hdr-right">
             <button className="icon-btn" onClick={() => { haptic(); setSearchOpen(true); }} aria-label="Buscar"><Icon name="search" size={17} /></button>
-            {cloud.uid && (() => {
-              const unread = cloud.social.notifications.filter((n) => !n.read).length;
-              return (
-                <button className="icon-btn bell-wrap" onClick={() => { haptic(); setNotifOpen(true); }} aria-label="Notificaciones">
-                  <Icon name="bell" size={17} />
-                  {unread > 0 && <span className="badge-dot">{unread > 9 ? "9+" : unread}</span>}
-                </button>
-              );
-            })()}
+            <button className="icon-btn" onClick={() => { haptic(); setPeriodOpen(true); }} aria-label={`Período: ${periodLabel}`}>
+              <Icon name="cal" size={17} />
+            </button>
             <button className="icon-btn" style={{ overflow: "hidden", padding: 0 }} onClick={() => { haptic(); setProfileOpen(true); }} aria-label="Perfil">
               {data.profile.photo ? <img className="avatar-mini" src={data.profile.photo} alt="" /> : <Icon name="user" size={18} />}
             </button>
@@ -2789,17 +2840,16 @@ export default function App() {
             options={[{ id: "expense", label: "", aria: "Gastos" }, { id: "income", label: "", aria: "Ingresos" }]}
             value={txType} onChange={setTxType}
             renderExtra={(o) => (
-              <span className={`seg-sub ${o.id === "expense" ? "exp" : "inc"}`}>
-                {o.id === "expense" ? "−" : "+"}
-                <AnimatedNumber value={o.id === "expense" ? totals.exp : totals.inc} format={fmtShort} />
+              <span className="seg-sub">
+                <span className={`seg-sign ${o.id === "expense" ? "exp" : "inc"}`}>
+                  <Icon name={o.id === "expense" ? "minus" : "plus"} size={12} color="#fff" stroke={3.4} />
+                </span>
+                <AnimatedNumber value={o.id === "expense" ? totals.exp : totals.inc} format={fmtShortPlain} />
               </span>
             )}
           />
-
-          <button className="period-btn" onClick={() => { haptic(); setPeriodOpen(true); }} aria-label="Cambiar período">
-            <span className="dot" /> {periodLabel} <Icon name="chevD" size={13} />
-          </button>
         </section>
+        </div>
 
         {/* ---------- gráfico y movimientos (animados al cambiar de lista o de tipo) ---------- */}
         <div key={`${activeList.id}|${txType}`} className="content-swap">
@@ -2870,12 +2920,11 @@ export default function App() {
           if (shared) { const id = await cloud.api.createSharedList(name); if (id) actions.setActiveList(id); }
           else { actions.createList(name); showToast("✨", "Lista creada"); }
         }} />
-      <NotificationsSheet open={notifOpen} onClose={() => setNotifOpen(false)} cloud={cloud} />
 
       {/* hoja de acciones del movimiento */}
       <Sheet open={!!actionTx} onClose={() => setActionTx(null)} title={null}>
         {actionTx && (() => {
-          const c = catMap.get(actionTx.categoryId) || { emoji: "❓", color: "#5D5D64", name: "Sin categoría" };
+          const c = catMap.get(actionTx.categoryId) || { emoji: "❓", color: "#6B6B74", name: "Sin categoría" };
           return (
             <>
               <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 4px 16px" }}>
