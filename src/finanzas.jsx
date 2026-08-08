@@ -23,12 +23,19 @@ const CSS = `
 /* la cadena de alturas viaja con la app, no sólo en el index.html: así el
    100% de .fin-app siempre resuelve aunque el HTML en caché sea viejo */
 html,body,#root{height:100%;}
+/* nada debe poder desplazar el documento: el scroll vive en .fin-scroll */
+html,body{overflow:hidden;}
 .fin-app,.fin-app *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;}
 .fin-app{
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;
   background:var(--bg); color:var(--txt);
-  position:relative; width:100%; height:100dvh; min-height:100dvh; overflow:visible;
+  /* fija y pegada a los cuatro bordes: así ocupa el área visible entera y,
+     sobre todo, no aporta nada al desplazamiento del documento. Con altura
+     normal (100dvh = 844) dentro de un viewport de maquetación de 797, el
+     documento quedaba 47 px desplazable y iOS lo desplazaba al enfocar un
+     campo: la app subía y dejaba la franja debajo. */
+  position:fixed; inset:0; overflow:visible;
   -webkit-font-smoothing:antialiased;
   font-feature-settings:"tnum" 1;
 }
@@ -212,9 +219,10 @@ input::placeholder{color:var(--txt3);}
 .fab:active{transform:scale(.88) rotate(-10deg); box-shadow:0 4px 12px rgba(0,0,0,.3);}
 
 /* ---------- sheets ---------- */
+/* sin desenfoque: era una capa a pantalla completa que iOS tiene que
+   rasterizar de nuevo cada vez que se mueve el teclado */
 .sheet-backdrop{
-  position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.5);
-  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.58);
   animation:fadeIn .3s ease both;
 }
 .sheet-backdrop.closing{animation:fadeOut .28s ease both;}
@@ -909,6 +917,7 @@ function DebugPanel({ onClose }) {
         "safe arriba/abajo": `${cs.paddingTop} / ${cs.paddingBottom}`,
         app: r ? `alto ${Math.round(r.height)}, fondo ${Math.round(r.bottom)}` : "-",
         body: `${Math.round(document.body.getBoundingClientRect().height)}`,
+        "scroll doc": `${Math.round(window.scrollY)} de ${Math.max(0, Math.round(document.documentElement.scrollHeight - document.documentElement.clientHeight))}`,
         standalone: window.navigator.standalone ? "sí" : matchMedia("(display-mode: standalone)").matches ? "display-mode" : "no",
         dpr: String(window.devicePixelRatio),
       });
@@ -2671,6 +2680,19 @@ export default function App() {
   const topRef = useRef(null);
   const topObs = useRef(null);
   const [topH, setTopH] = useState(0);
+
+  /* iOS desplaza el documento para revelar el campo enfocado. El scroll de la
+     app vive en .fin-scroll, así que cualquier desplazamiento del documento
+     sólo puede correr la app hacia arriba y dejar hueco: se deshace. */
+  useEffect(() => {
+    const undo = () => { if (window.scrollY || window.pageYOffset) window.scrollTo(0, 0); };
+    window.addEventListener("scroll", undo, { passive: true });
+    window.addEventListener("focusin", undo);
+    return () => {
+      window.removeEventListener("scroll", undo);
+      window.removeEventListener("focusin", undo);
+    };
+  }, []);
 
   /* diagnóstico de la franja: 5 toques seguidos en "Total" (o ?debug=1) */
   const [dbg, setDbg] = useState(() => typeof location !== "undefined" && /[?&]debug=1/.test(location.search));
