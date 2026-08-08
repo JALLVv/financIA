@@ -24,29 +24,30 @@ const CSS = `
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;}
 .fin-app{
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;
-  background:var(--bg); color:var(--txt); min-height:100dvh; width:100%;
+  background:var(--bg); color:var(--txt); position:fixed; inset:0; overflow:hidden;
   -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-  font-feature-settings:"tnum" 1; overflow-x:clip; position:relative;
+  font-feature-settings:"tnum" 1;
 }
-.fin-scroll{position:relative; z-index:1; padding:0 20px calc(120px + env(safe-area-inset-bottom)); max-width:520px; margin:0 auto;}
+/* el scroll vive aquí: bloquearlo no altera la posición ni el fondo */
+.fin-scroll{
+  position:relative; z-index:1; height:100%; overflow-y:auto; overflow-x:hidden;
+  overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
+  padding:0 20px calc(120px + env(safe-area-inset-bottom)); max-width:520px; margin:0 auto;
+}
 button{font:inherit; color:inherit; border:none; background:none; padding:0; cursor:pointer;}
 input,select,textarea{font:inherit; color:inherit;}
 input::placeholder{color:var(--txt3);}
 
 /* ---------- cabecera fija (encabezado + balance + filtro) ---------- */
 .top-fixed{
-  position:sticky; top:0; z-index:40; margin:0 -20px; padding:0 20px 2px;
-  background:linear-gradient(180deg, var(--bg) 55%, rgba(22,22,26,.9) 78%, rgba(22,22,26,.55) 92%, rgba(22,22,26,0) 100%);
+  position:sticky; top:0; z-index:40; margin:0 -20px; padding:0 20px 2px; background:transparent;
 }
 .top-fixed::before{
-  content:""; position:absolute; left:0; right:0; top:0; bottom:-28px; z-index:-1; pointer-events:none;
-  backdrop-filter:blur(16px) saturate(150%); -webkit-backdrop-filter:blur(16px) saturate(150%);
-  mask:linear-gradient(#000 60%, rgba(0,0,0,.5) 86%, transparent 100%);
-  -webkit-mask:linear-gradient(#000 60%, rgba(0,0,0,.5) 86%, transparent 100%);
-}
-.top-fixed::after{
-  content:""; position:absolute; left:0; right:0; top:100%; height:28px; pointer-events:none;
-  background:linear-gradient(rgba(22,22,26,.7), rgba(22,22,26,0));
+  content:""; position:absolute; left:0; right:0; top:0; bottom:-26px; z-index:-1; pointer-events:none;
+  background:linear-gradient(180deg, var(--bg) 0 60%, rgba(22,22,26,.86) 78%, rgba(22,22,26,.42) 91%, rgba(22,22,26,0) 100%);
+  backdrop-filter:blur(14px) saturate(150%); -webkit-backdrop-filter:blur(14px) saturate(150%);
+  mask:linear-gradient(#000 0 60%, rgba(0,0,0,.5) 84%, transparent 100%);
+  -webkit-mask:linear-gradient(#000 0 60%, rgba(0,0,0,.5) 84%, transparent 100%);
 }
 .hdr{
   position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between;
@@ -140,7 +141,7 @@ input::placeholder{color:var(--txt3);}
 /* ---------- transactions ---------- */
 .tx-section{margin-top:26px;}
 .date-hdr{
-  position:sticky; top:calc(var(--topH, 0px) - 2px); z-index:20;
+  position:sticky; top:calc(var(--topH, 0px) + 24px); z-index:20;
   display:flex; align-items:center; justify-content:space-between; gap:10px;
   margin:16px -20px 8px; padding:8px 20px; background:var(--bg);
 }
@@ -806,36 +807,21 @@ function Segmented({ options, value, onChange, renderExtra, className }) {
 /* Bloqueo del scroll del fondo mientras hay una hoja o pantalla abierta:
    evita que iOS desplace la app principal al abrir el teclado (la hoja
    y el fondo quedan separados). */
-let bodyLockCount = 0, bodyLockY = 0;
-/* Al abrir una hoja el body se fija en su posición actual: el fondo conserva
-   exactamente el mismo scroll y el teclado ya no puede desplazar la página
-   (overflow:hidden saltaba al tope o dejaba el fondo con otro scroll). */
+let bodyLockCount = 0;
+/* Con el scroll en .fin-scroll, bloquearlo es solo ocultar su overflow:
+   el navegador conserva scrollTop, así que no hay saltos, franjas ni
+   desplazamientos del fondo al abrir hojas o el teclado. */
+const scrollEl = () => document.querySelector(".fin-scroll");
 function lockBodyScroll() {
   if (++bodyLockCount > 1) return;
-  bodyLockY = window.scrollY || 0;
-  const b = document.body;
-  b.style.position = "fixed";
-  b.style.top = `-${bodyLockY}px`;
-  b.style.left = "0";
-  b.style.right = "0";
-  b.style.width = "100%";
-  b.style.minHeight = "100dvh";
-  b.style.overflow = "hidden";
-  b.style.overscrollBehavior = "none";
+  const el = scrollEl();
+  if (el) el.style.overflowY = "hidden";
 }
 function unlockBodyScroll() {
   if (--bodyLockCount > 0) return;
   bodyLockCount = 0;
-  const b = document.body;
-  b.style.position = "";
-  b.style.top = "";
-  b.style.left = "";
-  b.style.right = "";
-  b.style.width = "";
-  b.style.minHeight = "";
-  b.style.overflow = "";
-  b.style.overscrollBehavior = "";
-  window.scrollTo(0, bodyLockY);
+  const el = scrollEl();
+  if (el) el.style.overflowY = "";
 }
 
 /* Hoja modal estilo iOS con animación de cierre.
@@ -1935,7 +1921,7 @@ function ListSheet({ open, onClose, data, onSelect, onCreate, canShare }) {
               <EmojiBubble emoji={l.shared ? "👥" : "🤫"} color={l.shared ? shareColor : privColor} size={40} />
               <div className="r-main">{l.name}
                 <div className="r-sub" style={{ color: v > 0.004 ? "var(--green)" : v < -0.004 ? "var(--red)" : "var(--txt3)" }}>
-                  {(v > 0.004 ? "+" : v < -0.004 ? "−" : "") + fmt(v)}
+                  {(v > 0.004 ? "+" : v < -0.004 ? "−" : "") + fmt(Math.abs(v))}
                 </div>
               </div>
               {on && <span className="check"><Icon name="check" size={18} /></span>}
@@ -2060,7 +2046,7 @@ function SearchScreen({ requestClose, data, onPressTx }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", margin: "14px 4px 0" }}>
           <div className="section-title" style={{ margin: 0 }}>{results.length} resultado{results.length === 1 ? "" : "s"}</div>
           <div style={{ fontSize: 13, fontWeight: 800, color: total > 0.004 ? "var(--green)" : total < -0.004 ? "var(--red)" : "var(--txt3)" }}>
-            {(total > 0.004 ? "+" : total < -0.004 ? "−" : "") + fmt(total)}
+            {(total > 0.004 ? "+" : total < -0.004 ? "−" : "") + fmt(Math.abs(total))}
           </div>
         </div>
         {results.length === 0 ? (
