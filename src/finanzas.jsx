@@ -23,19 +23,25 @@ const CSS = `
 /* la cadena de alturas viaja con la app, no sólo en el index.html: así el
    100% de .fin-app siempre resuelve aunque el HTML en caché sea viejo */
 html,body,#root{height:100%;}
-/* nada debe poder desplazar el documento: el scroll vive en .fin-scroll */
-html,body{overflow:hidden;}
+/* OJO: nunca poner overflow:hidden en html/body. Safari recorta a esa caja
+   todos los position:fixed descendientes —la app y las hojas—, y como el
+   documento mide 797 frente a los 844 de la pantalla, eso deja una franja
+   permanente abajo y corta las hojas. */
 .fin-app,.fin-app *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;}
 .fin-app{
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;
   background:var(--bg); color:var(--txt);
-  /* fija y pegada a los cuatro bordes: así ocupa el área visible entera y,
-     sobre todo, no aporta nada al desplazamiento del documento. Con altura
-     normal (100dvh = 844) dentro de un viewport de maquetación de 797, el
-     documento quedaba 47 px desplazable y iOS lo desplazaba al enfocar un
-     campo: la app subía y dejaba la franja debajo. */
-  position:fixed; inset:0; overflow:visible;
+  /* Fija, pero con el alto en dvh, no con inset:0.
+
+     Fija → no aporta nada al desplazamiento del documento. Con posición
+     normal, sus 844 px dentro de un viewport de maquetación de 797 dejaban
+     el documento 47 px desplazable, y iOS lo desplaza al enfocar un campo:
+     la app subía y dejaba la franja debajo.
+
+     El alto en dvh (844) y no inset:0, porque inset:0 se resuelve contra el
+     viewport de maquetación, que aquí mide 797. */
+  position:fixed; left:0; right:0; top:0; height:100dvh; overflow:visible;
   -webkit-font-smoothing:antialiased;
   font-feature-settings:"tnum" 1;
 }
@@ -894,9 +900,12 @@ if (typeof window !== "undefined" && window.visualViewport) {
 function DebugPanel({ onClose }) {
   const [info, setInfo] = useState({});
   useEffect(() => {
+    /* las sondas van fijas, no absolutas: una sonda absoluta de 844 px dentro
+       de un documento de 797 creaba ella misma 47 px de desbordamiento y
+       cambiaba lo que venía a medir */
     const mk = (css) => {
       const d = document.createElement("div");
-      d.style.cssText = "position:absolute;visibility:hidden;top:0;left:0;width:1px;pointer-events:none;" + css;
+      d.style.cssText = "position:fixed;visibility:hidden;top:0;left:0;width:1px;pointer-events:none;" + css;
       document.body.appendChild(d);
       return d;
     };
