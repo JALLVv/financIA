@@ -26,7 +26,7 @@ const CSS = `
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;
   background:var(--bg); color:var(--txt);
   position:relative; width:100%; height:var(--appH, 100dvh); min-height:var(--appH, 100dvh); overflow:visible;
-  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  -webkit-font-smoothing:antialiased;
   font-feature-settings:"tnum" 1;
 }
 /* el scroll vive aquí: bloquearlo no altera la posición ni el fondo */
@@ -147,10 +147,10 @@ input::placeholder{color:var(--txt3);}
   margin:16px 2px 8px; background:transparent; pointer-events:none;
   transform-origin:50% 0;
 }
+/* sin desenfoque: hay una burbuja por día y el fondo ya es casi opaco */
 .date-pill,.date-total{
   pointer-events:auto;
-  background:rgba(38,38,44,.9); backdrop-filter:blur(10px) saturate(150%);
-  -webkit-backdrop-filter:blur(10px) saturate(150%);
+  background:rgba(38,38,44,.96);
   border-radius:999px; padding:5px 13px; font-weight:700;
   font-feature-settings:"tnum" 1; transition:transform .25s var(--spring);
 }
@@ -1197,6 +1197,7 @@ function useStickyHandoff(rootRef, count) {
     measure();
     /* la lista entra con una animación de desplazamiento: se vuelve a medir al terminar */
     const t = setTimeout(measure, 400);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(measure).catch(() => {});
     sc.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", measure);
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
@@ -2566,15 +2567,20 @@ export default function App() {
   const [topH, setTopH] = useState(0);
   const [appH, setAppH] = useState(0);
 
-  /* alto real de la ventana: la app ocupa exactamente la pantalla en iOS */
+  /* alto real de la ventana: la app ocupa exactamente la pantalla en iOS.
+     También al volver de segundo plano (pageshow), o el valor se queda viejo
+     el resto de la sesión y la app acaba más corta que la pantalla. */
   useEffect(() => {
     const set = () => setAppH(Math.round(window.innerHeight));
     set();
     window.addEventListener("resize", set);
     window.addEventListener("orientationchange", set);
+    window.addEventListener("pageshow", set);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(set).catch(() => {});
     return () => {
       window.removeEventListener("resize", set);
       window.removeEventListener("orientationchange", set);
+      window.removeEventListener("pageshow", set);
     };
   }, []);
 
@@ -2585,6 +2591,7 @@ export default function App() {
     if (!el) return;
     const read = () => setTopH(Math.round(el.getBoundingClientRect().height));
     read();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(read).catch(() => {});
     if (typeof ResizeObserver !== "undefined") {
       topObs.current = new ResizeObserver(read);
       topObs.current.observe(el);
