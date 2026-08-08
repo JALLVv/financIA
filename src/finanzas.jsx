@@ -142,9 +142,10 @@ input::placeholder{color:var(--txt3);}
 /* ---------- transactions ---------- */
 .tx-section{margin-top:26px;}
 .date-hdr{
-  position:sticky; top:calc(var(--topH, 0px) + 16px); z-index:20;
+  position:sticky; top:var(--dateTop, calc(var(--topH, 0px) + 16px)); z-index:20;
   display:flex; align-items:center; justify-content:space-between; gap:10px;
   margin:16px 2px 8px; background:transparent; pointer-events:none;
+  transform-origin:50% 0;
 }
 .date-pill,.date-total{
   pointer-events:auto;
@@ -336,7 +337,7 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 @keyframes overlayIn{from{opacity:0; transform:translateY(4%) scale(.98)}to{opacity:1; transform:none}}
 @keyframes overlayOut{from{opacity:1}to{opacity:0; transform:translateY(3%) scale(.98)}}
 .overlay-hdr{display:flex; align-items:center; gap:12px; padding:calc(12px + env(safe-area-inset-top)) 20px 12px; flex:none; max-width:520px; margin:0 auto; width:100%;}
-.overlay-body{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:0 20px calc(40px + env(safe-area-inset-bottom) + var(--kb, 0px)); max-width:520px; margin:0 auto; width:100%;}
+.overlay-body{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:0 20px calc(40px + env(safe-area-inset-bottom) + var(--kb, 0px)); max-width:520px; margin:0 auto; width:100%; --dateTop:4px;}
 .search-input-wrap{flex:1; display:flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:10px 14px;}
 .search-input-wrap input{flex:1; background:none; border:none; outline:none; font-size:15px; min-width:0;}
 .cancel-txt{color:var(--accent); font-weight:600; font-size:15px; flex:none;}
@@ -1125,9 +1126,96 @@ const TxRow = memo(function TxRow({ tx, cat, onPress, showList, listName, index 
 });
 
 /* Lista agrupada por fecha con carga incremental (rendimiento) */
+/* Contenedor con scroll más cercano (la app y el buscador tienen el suyo). */
+function scrollParentOf(el) {
+  for (let p = el && el.parentElement; p; p = p.parentElement) {
+    const o = getComputedStyle(p).overflowY;
+    if (o === "auto" || o === "scroll") return p;
+  }
+  return null;
+}
+
+/* Relevo de fechas pegajosas: cuando el grupo siguiente empuja a la fecha
+   pegada, ésta se desvanece y se encoge para cederle el sitio a la nueva
+   en lugar de arrastrarse por detrás de la cabecera. */
+function useStickyHandoff(rootRef, count) {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !count) return;
+    const sc = scrollParentOf(root);
+    if (!sc) return;
+
+    let items = [];
+    let stickyTop = 0;
+    let hdrH = 26;
+    let raf = 0;
+    let cur = -1;
+
+    const paint = (it, p) => {
+      if (p === it.prog) return;
+      if (p > 0 && p < 1 && Math.abs(p - it.prog) < 0.02) return;
+      it.prog = p;
+      it.hdr.style.opacity = p >= 1 ? "0" : p > 0 ? String(1 - p) : "";
+      it.hdr.style.transform = p > 0 ? `translateY(${(-5 * p).toFixed(2)}px) scale(${(1 - 0.06 * p).toFixed(3)})` : "";
+    };
+
+    const apply = () => {
+      raf = 0;
+      if (!items.length) return;
+      const line = sc.scrollTop + stickyTop; // altura donde descansa la fecha pegada
+      let i = cur >= 0 && cur < items.length ? cur : 0;
+      while (i > 0 && line < items[i].top) i--;
+      while (i < items.length - 1 && line >= items[i + 1].top) i++;
+      /* las de arriba quedan ocultas (ya fueron relevadas), las de abajo intactas */
+      if (cur < 0) {
+        for (let k = 0; k < items.length; k++) if (k !== i) paint(items[k], k < i ? 1 : 0);
+      } else if (cur !== i) {
+        for (let k = Math.min(cur, i); k <= Math.max(cur, i); k++) if (k !== i) paint(items[k], k < i ? 1 : 0);
+      }
+      cur = i;
+      const it = items[i];
+      const push = line - (it.bottom - hdrH);
+      paint(it, push <= 0 ? 0 : Math.min(1, push / (hdrH * 0.7)));
+    };
+
+    const measure = () => {
+      const hdrs = root.querySelectorAll(".date-hdr");
+      const base = sc.getBoundingClientRect().top - sc.scrollTop;
+      items = [];
+      for (const hdr of hdrs) {
+        const r = hdr.parentElement.getBoundingClientRect();
+        items.push({ hdr, top: r.top - base, bottom: r.top - base + r.height, prog: -1 });
+      }
+      if (!items.length) return;
+      stickyTop = parseFloat(getComputedStyle(items[0].hdr).top) || 0;
+      hdrH = items[0].hdr.offsetHeight || 26;
+      cur = -1;
+      apply();
+    };
+
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(apply); };
+    measure();
+    /* la lista entra con una animación de desplazamiento: se vuelve a medir al terminar */
+    const t = setTimeout(measure, 400);
+    sc.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", measure);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    if (ro) ro.observe(root);
+    return () => {
+      clearTimeout(t);
+      sc.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", measure);
+      if (ro) ro.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+      for (const it of items) { it.hdr.style.opacity = ""; it.hdr.style.transform = ""; }
+    };
+  }, [rootRef, count]);
+}
+
 function GroupedTxList({ txs, catMap, onPress, listMap, showList, animKey }) {
   const [limit, setLimit] = useState(60);
   const sentinel = useRef(null);
+  const rootRef = useRef(null);
   useEffect(() => { setLimit(60); }, [animKey]);
   useEffect(() => {
     if (!sentinel.current) return;
@@ -1148,15 +1236,17 @@ function GroupedTxList({ txs, catMap, onPress, listMap, showList, animKey }) {
     return [...map.entries()];
   }, [txs, limit]);
 
+  useStickyHandoff(rootRef, groups.length);
+
   const fallbackCat = { name: "Sin categoría", emoji: "❓", color: "#6B6B74" };
   return (
-    <div className="content-swap" key={animKey}>
+    <div className="content-swap" key={animKey} ref={rootRef}>
       {groups.map(([date, items], gi) => {
         const dayTotal = items.reduce((s2, t) => s2 + (t.type === "income" ? t.amount : -t.amount), 0);
         const cls = dayTotal > 0.004 ? "pos" : dayTotal < -0.004 ? "neg" : "zero";
         const sign = dayTotal > 0.004 ? "+" : dayTotal < -0.004 ? "−" : "";
         return (
-          <div key={date}>
+          <div key={date} className="date-group">
             <div className="date-hdr">
               <span className="date-pill">{fmtDate(date)}</span>
               <span className={`date-total ${cls}`}>{sign}{fmt(Math.abs(dayTotal))}</span>
