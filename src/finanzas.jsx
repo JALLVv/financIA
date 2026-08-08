@@ -25,7 +25,7 @@ const CSS = `
 .fin-app{
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;
   background:var(--bg); color:var(--txt);
-  position:relative; width:100%; height:100dvh; min-height:100dvh; overflow:hidden;
+  position:relative; width:100%; height:100dvh; min-height:100vh; overflow:hidden;
   -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
   font-feature-settings:"tnum" 1;
 }
@@ -186,7 +186,7 @@ input::placeholder{color:var(--txt3);}
 
 /* ---------- FAB ---------- */
 .fab{
-  position:absolute; right:calc(20px + env(safe-area-inset-right));
+  position:fixed; right:calc(20px + env(safe-area-inset-right));
   bottom:calc(24px + env(safe-area-inset-bottom)); z-index:45;
   width:62px; height:62px; border-radius:50%;
   background:var(--accent);
@@ -199,14 +199,14 @@ input::placeholder{color:var(--txt3);}
 
 /* ---------- sheets ---------- */
 .sheet-backdrop{
-  position:absolute; inset:0; z-index:60; background:rgba(0,0,0,.5);
+  position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.5);
   backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
   animation:fadeIn .3s ease both;
 }
 .sheet-backdrop.closing{animation:fadeOut .28s ease both;}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}} @keyframes fadeOut{from{opacity:1}to{opacity:0}}
 .sheet{
-  position:absolute; left:0; right:0; bottom:0; z-index:61; margin:0 auto; max-width:520px;
+  position:fixed; left:0; right:0; bottom:0; z-index:61; margin:0 auto; max-width:520px;
   background:var(--glass); backdrop-filter:blur(28px) saturate(170%); -webkit-backdrop-filter:blur(28px) saturate(170%);
   border:1px solid var(--line2); border-bottom:none; border-radius:26px 26px 0 0;
   padding:10px 20px calc(22px + env(safe-area-inset-bottom));
@@ -329,7 +329,7 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 
 /* ---------- search ---------- */
 .overlay{
-  position:absolute; inset:0; z-index:70; background:var(--bg); display:flex; flex-direction:column;
+  position:fixed; inset:0; z-index:70; background:var(--bg); display:flex; flex-direction:column;
   animation:overlayIn .3s var(--ease-ios) both; max-width:100%;
 }
 .overlay.closing{animation:overlayOut .22s var(--ease-ios) both;}
@@ -405,7 +405,7 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 .emoji-big-input:focus{border-color:var(--accent);}
 
 .toast{
-  position:absolute; top:calc(14px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); z-index:90;
+  position:fixed; top:calc(14px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); z-index:90;
   background:var(--glass); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
   border:1px solid var(--line2); border-radius:20px; padding:11px 20px; font-weight:700; font-size:14px;
   box-shadow:0 10px 30px rgba(0,0,0,.5); animation:toastIn .45s var(--spring) both; display:flex; align-items:center; gap:8px;
@@ -2989,7 +2989,7 @@ export default function App() {
 
       {/* visor de foto a pantalla completa */}
       {photoView && (
-        <div style={{ position: "absolute", inset: 0, zIndex: 95, background: "rgba(0,0,0,.94)", display: "grid", placeItems: "center", padding: 16 }}
+        <div style={{ position: "fixed", inset: 0, zIndex: 95, background: "rgba(0,0,0,.94)", display: "grid", placeItems: "center", padding: 16 }}
           onClick={() => setPhotoView(null)} role="dialog" aria-label="Foto adjunta">
           <img src={photoView} alt="Foto adjunta" style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 12 }} />
           <button className="sheet-close" style={{ position: "absolute", top: "calc(16px + env(safe-area-inset-top))", right: 16 }}
