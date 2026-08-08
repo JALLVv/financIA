@@ -13,12 +13,14 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Finanzas">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400..1000;1,400..1000&display=swap"
-    onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400..1000;1,400..1000&display=swap"></noscript>
+  <link rel="preload" href="./fonts/nunito-latin.woff2" as="font" type="font/woff2" crossorigin>
   <style>
+    /* La fuente va con la app: sin viajes a Google, así no se pinta primero
+       con la de reserva y se recoloca todo al llegar Nunito. */
+    @font-face{
+      font-family:"Nunito"; font-style:normal; font-weight:300 900;
+      font-display:block; src:url("./fonts/nunito-latin.woff2") format("woff2");
+    }
     html,body{margin:0;padding:0;background:#16161A;height:100%;min-height:100%;}
     #root{height:100%;}
     body{overscroll-behavior-y:none;-webkit-text-size-adjust:100%;}

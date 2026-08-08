@@ -2,8 +2,9 @@
    se actualiza en segundo plano (stale-while-revalidate) — arranque rápido
    y la versión nueva queda lista para la siguiente apertura.
    Incluye notificaciones push. */
-const CACHE = "finanzas-v3";
+const CACHE = "finanzas-v4";
 const ASSETS = ["./", "./index.html", "./app.js", "./config.js", "./manifest.webmanifest",
+  "./fonts/nunito-latin.woff2",
   "./icons/icon-180.png", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {
