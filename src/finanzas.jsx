@@ -32,16 +32,10 @@ html,body,#root{height:100%;}
 .fin-app{
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;
   background:var(--bg); color:var(--txt);
-  /* Fija, pero con el alto en dvh, no con inset:0.
-
-     Fija → no aporta nada al desplazamiento del documento. Con posición
-     normal, sus 844 px dentro de un viewport de maquetación de 797 dejaban
-     el documento 47 px desplazable, y iOS lo desplaza al enfocar un campo:
-     la app subía y dejaba la franja debajo.
-
-     El alto en dvh (844) y no inset:0, porque inset:0 se resuelve contra el
-     viewport de maquetación, que aquí mide 797. */
-  position:fixed; left:0; right:0; top:0; height:100dvh; overflow:visible;
+  /* posición normal: con la barra de estado ya no translúcida, el dvh y el
+     viewport de maquetación coinciden, así que la app no desborda el
+     documento y no hace falta fijarla (fijarla enredaba al teclado) */
+  position:relative; width:100%; height:100dvh; min-height:100dvh; overflow:visible;
   -webkit-font-smoothing:antialiased;
   font-feature-settings:"tnum" 1;
 }
@@ -241,13 +235,6 @@ input::placeholder{color:var(--txt3);}
   max-height:88dvh; display:flex; flex-direction:column;
   animation:sheetUp .32s var(--ease-ios) both;
   box-shadow:0 -20px 60px rgba(0,0,0,.5);
-}
-/* faldón: si la hoja sube sobre el teclado, su material continúa hasta el
-   borde inferior, así ningún desajuste puede verse como una franja vacía */
-.sheet::after{
-  content:""; position:absolute; left:-1px; right:-1px; top:100%; height:70vh;
-  background:var(--glass); border-left:1px solid var(--line2); border-right:1px solid var(--line2);
-  pointer-events:none;
 }
 .sheet.closing{animation:sheetDown .24s var(--ease-ios) both;}
 @keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
@@ -919,6 +906,7 @@ function DebugPanel({ onClose }) {
         app: r ? `alto ${Math.round(r.height)}, fondo ${Math.round(r.bottom)}` : "-",
         body: `${Math.round(document.body.getBoundingClientRect().height)}`,
         "scroll doc": `${Math.round(window.scrollY)} de ${Math.max(0, Math.round(document.documentElement.scrollHeight - document.documentElement.clientHeight))}`,
+        teclado: `${keyboardHeight()} (bruto ${vv ? Math.round(window.innerHeight - vv.height - vv.offsetTop) : "-"})`,
         standalone: window.navigator.standalone ? "sí" : matchMedia("(display-mode: standalone)").matches ? "display-mode" : "no",
         dpr: String(window.devicePixelRatio),
       });
@@ -2682,20 +2670,7 @@ export default function App() {
   const topObs = useRef(null);
   const [topH, setTopH] = useState(0);
 
-  /* iOS desplaza el documento para revelar el campo enfocado. El scroll de la
-     app vive en .fin-scroll, así que cualquier desplazamiento del documento
-     sólo puede correr la app hacia arriba y dejar hueco: se deshace. */
-  useEffect(() => {
-    const undo = () => { if (window.scrollY || window.pageYOffset) window.scrollTo(0, 0); };
-    window.addEventListener("scroll", undo, { passive: true });
-    window.addEventListener("focusin", undo);
-    return () => {
-      window.removeEventListener("scroll", undo);
-      window.removeEventListener("focusin", undo);
-    };
-  }, []);
-
-  /* diagnóstico de la franja: 5 toques seguidos en "Total" (o ?debug=1) */
+  /* diagnóstico: 5 toques seguidos en "Total" (o ?debug=1) */
   const [dbg, setDbg] = useState(() => typeof location !== "undefined" && /[?&]debug=1/.test(location.search));
   const tapRef = useRef({ n: 0, t: 0 });
   const onLabelTap = useCallback(() => {
