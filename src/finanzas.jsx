@@ -213,6 +213,7 @@ input::placeholder{color:var(--txt3);}
    rasterizar de nuevo cada vez que se mueve el teclado */
 .sheet-backdrop{
   position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.58);
+  touch-action:none; overscroll-behavior:none;
   animation:fadeIn .3s ease both;
 }
 .sheet-backdrop.closing{animation:fadeOut .28s ease both;}
@@ -845,13 +846,15 @@ const scrollEl = () => document.querySelector(".fin-scroll");
 function lockBodyScroll() {
   if (++bodyLockCount > 1) return;
   const el = scrollEl();
-  if (el) el.style.overflowY = "hidden";
+  /* touch-action además del overflow: en iOS el overflow:hidden no siempre
+     frena el arrastre con el dedo sobre un contenedor con inercia */
+  if (el) { el.style.overflowY = "hidden"; el.style.touchAction = "none"; }
 }
 function unlockBodyScroll() {
   if (--bodyLockCount > 0) return;
   bodyLockCount = 0;
   const el = scrollEl();
-  if (el) el.style.overflowY = "";
+  if (el) { el.style.overflowY = ""; el.style.touchAction = ""; }
 }
 
 /* Alto del teclado: la reducción del viewport visual respecto a la ventana.
@@ -920,10 +923,7 @@ function Sheet({ open, onClose, title, children, footer }) {
   const [kb, setKb] = useState(0);
   const [avail, setAvail] = useState(0);
   const [animDone, setAnimDone] = useState(false);
-  /* corrección medida: no se confía en la cuenta, se comprueba dónde quedó */
-  const [adjust, setAdjust] = useState(0);
   const sheetRef = useRef(null);
-  const adjustedRef = useRef(false);
   const z = useLayer(mounted);
   useEffect(() => {
     if (open) { setMounted(true); setClosing(false); setAnimDone(false); }
@@ -953,7 +953,6 @@ function Sheet({ open, onClose, title, children, footer }) {
     const measure = keyboardHeight;
     const commit = (v) => {
       last = v; setKb(v); setAvail(Math.round(vv.height));
-      if (v === 0) { adjustedRef.current = false; setAdjust(0); }
     };
     const apply = () => {
       raf = null;
@@ -982,40 +981,27 @@ function Sheet({ open, onClose, title, children, footer }) {
     setTimeout(() => { try { t.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (err) {} }, 380);
   };
 
-  const lifted = animDone && !closing && kb > 0;
-
-  /* Red de seguridad medida, no calculada. El alto del teclado se deduce de
-     cómo coloca iOS los elementos fijos al desplazar el viewport visual, y esa
-     deducción es la que dejaba la hoja fuera de la pantalla por arriba. En vez
-     de suponer un sistema de coordenadas, se mira el síntoma: si el borde
-     superior de la hoja se ha salido, se la baja hasta volver a verlo. Sólo
-     puede bajarla, así que no cabe vaivén. */
-  useEffect(() => {
-    if (!lifted || adjustedRef.current) return;
-    const el = sheetRef.current;
-    if (!el) return;
-    const t = setTimeout(() => {
-      const arriba = el.getBoundingClientRect().top;
-      adjustedRef.current = true;
-      if (arriba < 4) setAdjust(Math.max(-260, arriba - 4));
-    }, 280);
-    return () => clearTimeout(t);
-  }, [lifted, kb]);
-
   if (!mounted) return null;
-  const shift = Math.max(0, kb + adjust);
+  /* La hoja NO se mueve: sigue pegada al borde inferior y lo que crece es su
+     relleno de abajo, así que su superficie llega siempre hasta el final de
+     la pantalla. Antes se desplazaba hacia arriba con el alto del teclado, y
+     cualquier error en esa medida se veía como una franja negra entre la
+     hoja y el teclado, o como una hoja que se salía por arriba. Ahora un
+     error de medida sólo son unos píxeles de más o de menos de relleno. */
+  const visible = avail ? Math.max(200, avail - 20) : 0;
   return (
     <>
       <div className={`sheet-backdrop ${closing ? "closing" : ""}`} style={{ zIndex: z.backdrop }} onClick={onClose} />
       <div ref={sheetRef} className={`sheet ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={title}
         onFocusCapture={onFieldFocus}
         onAnimationEnd={(e) => { if (e.target === e.currentTarget) setAnimDone(true); }}
-        style={lifted
-          ? { zIndex: z.front, animation: "none", transform: `translateY(-${shift}px)`,
-              maxHeight: avail ? `${Math.max(200, avail - 20)}px` : `calc(100dvh - ${shift}px - 20px)`,
-              transition: "transform .22s var(--ease-ios)" }
+        style={kb > 0 && !closing
+          ? { zIndex: z.front, animation: "none",
+              paddingBottom: `calc(22px + env(safe-area-inset-bottom) + ${kb}px)`,
+              maxHeight: visible ? `${visible + kb}px` : `calc(100dvh - 20px)`,
+              transition: "padding-bottom .22s var(--ease-ios)" }
           : animDone && !closing
-            ? { zIndex: z.front, animation: "none", transition: "transform .22s var(--ease-ios)" }
+            ? { zIndex: z.front, animation: "none", transition: "padding-bottom .22s var(--ease-ios)" }
             : { zIndex: z.front }}>
         <div className="grabber" />
         {title != null && (
