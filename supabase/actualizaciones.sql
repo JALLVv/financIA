@@ -239,3 +239,87 @@ begin
   get diagnostics hit = row_count;
   return hit > 0;
 end $$;
+
+-- ============================================================
+-- 2026-08-15: la subida inicial se vuelve idempotente
+--
+-- Si la app se cerraba entre que import_local_data confirmaba y el
+-- dispositivo se marcaba como migrado, al volver a abrir subía otra vez lo
+-- mismo. Ahora cada dispositivo manda un identificador propio y el servidor
+-- ignora una segunda subida con el mismo.
+-- ============================================================
+create table if not exists public.import_tokens (
+  token text primary key,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+alter table public.import_tokens enable row level security;
+drop policy if exists "import_tokens_own" on public.import_tokens;
+create policy "import_tokens_own" on public.import_tokens
+  for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop function if exists public.import_local_data(jsonb);
+create or replace function public.import_local_data(payload jsonb, token text default null)
+returns integer language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := auth.uid();
+  l jsonb; c jsonb; t jsonb; r jsonb;
+  lid uuid; cid uuid;
+  lmap jsonb := '{}'::jsonb;
+  cmap jsonb := '{}'::jsonb;
+  n integer := 0;
+  hit integer;
+begin
+  if me is null then raise exception 'No autenticado'; end if;
+
+  -- una subida por dispositivo: si el identificador ya estaba, no se repite
+  if token is not null then
+    insert into import_tokens (token, user_id) values (token, me) on conflict do nothing;
+    get diagnostics hit = row_count;
+    if hit = 0 then return 0; end if;
+  end if;
+
+  for l in select value from jsonb_array_elements(coalesce(payload->'lists', '[]'::jsonb)) loop
+    insert into shared_lists (name, owner, private) values (l->>'name', me, true) returning id into lid;
+    insert into list_members (list_id, user_id) values (lid, me);
+    lmap := lmap || jsonb_build_object(l->>'id', lid::text);
+    n := n + 1;
+  end loop;
+
+  for c in select value from jsonb_array_elements(coalesce(payload->'categories', '[]'::jsonb)) loop
+    lid := nullif(lmap->>(c->>'listId'), '')::uuid;
+    if lid is not null then
+      insert into shared_categories (list_id, name, emoji, color)
+        values (lid, c->>'name', c->>'emoji', c->>'color') returning id into cid;
+      cmap := cmap || jsonb_build_object(c->>'id', cid::text);
+    end if;
+  end loop;
+
+  for t in select value from jsonb_array_elements(coalesce(payload->'transactions', '[]'::jsonb)) loop
+    lid := nullif(lmap->>(t->>'listId'), '')::uuid;
+    cid := nullif(cmap->>(t->>'categoryId'), '')::uuid;
+    if lid is not null and cid is not null
+       and coalesce((t->>'amount')::numeric, 0) > 0 and nullif(t->>'date', '') is not null then
+      insert into shared_transactions
+        (list_id, category_id, author, type, amount, description, date, photo, transfer_id)
+      values (lid, cid, me, t->>'type', (t->>'amount')::numeric,
+              coalesce(t->>'description', ''), (t->>'date')::date,
+              nullif(t->>'photo', ''), nullif(t->>'transferId', ''));
+    end if;
+  end loop;
+
+  for r in select value from jsonb_array_elements(coalesce(payload->'recurring', '[]'::jsonb)) loop
+    lid := nullif(lmap->>(r->>'listId'), '')::uuid;
+    if lid is not null and coalesce((r->>'amount')::numeric, 0) > 0
+       and nullif(coalesce(r->>'nextDate', r->>'startDate'), '') is not null then
+      insert into recurring_rules
+        (owner, list_id, category_id, to_list_id, type, amount, description, frequency, start_date, next_date)
+      values (me, lid, nullif(cmap->>(r->>'categoryId'), '')::uuid, nullif(lmap->>(r->>'toListId'), '')::uuid,
+              r->>'type', (r->>'amount')::numeric, coalesce(r->>'description', ''), r->>'frequency',
+              coalesce(nullif(r->>'startDate', ''), r->>'nextDate')::date,
+              coalesce(nullif(r->>'nextDate', ''), r->>'startDate')::date);
+    end if;
+  end loop;
+
+  return n;
+end $$;

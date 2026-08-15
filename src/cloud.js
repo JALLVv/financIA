@@ -142,8 +142,10 @@ export const cloudApi = {
   /* ajustes y lista activa viajan con la cuenta */
   saveState: (uid, patch) => supabase.from("profiles").update(patch).eq("id", uid),
 
-  /* sube de una sola vez lo que ya había en el dispositivo (una transacción) */
-  importLocalData: (payload) => supabase.rpc("import_local_data", { payload }),
+  /* sube de una sola vez lo que ya había en el dispositivo (una transacción).
+     El token identifica al dispositivo: si por lo que sea se reintenta, el
+     servidor reconoce que esa subida ya se hizo y devuelve 0 sin repetirla. */
+  importLocalData: (payload, token) => supabase.rpc("import_local_data", { payload, token }),
 
   markNotificationsRead: () => supabase.from("notifications").update({ read: true }).eq("read", false),
   deleteNotification: (id) => supabase.from("notifications").delete().eq("id", id),
