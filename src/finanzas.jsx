@@ -1220,7 +1220,7 @@ const BarChart = memo(function BarChart({ groups, type, onSelect, selectedId, an
 });
 
 /* ----------------------- Fila de transacción ----------------------- */
-const TxRow = memo(function TxRow({ tx, cat, onPress, showList, listName, index = 0 }) {
+const TxRow = memo(function TxRow({ tx, cat, onPress, showList, listName, showAuthor, index = 0 }) {
   const inc = tx.type === "income";
   return (
     <button className="tx-row" style={{ animationDelay: `${Math.min(index, 10) * 26}ms` }}
@@ -1229,7 +1229,8 @@ const TxRow = memo(function TxRow({ tx, cat, onPress, showList, listName, index 
       <div className="tx-mid">
         <div className="tx-cat">
           {cat.name}
-          {tx.authorName ? <> · <span className="tx-author">{tx.authorName}</span></> : null}
+          {/* quién lo registró sólo tiene sentido donde hay más de una persona */}
+          {showAuthor && tx.authorName ? <> · <span className="tx-author">{tx.authorName}</span></> : null}
           {showList ? ` · ${listName}` : ""}
         </div>
         <div className="tx-desc">{tx.description || cat.name}</div>
@@ -1371,10 +1372,14 @@ function GroupedTxList({ txs, catMap, onPress, listMap, showList, animKey }) {
               <span className={`date-total ${cls}`}>{sign}{fmt(Math.abs(dayTotal))}</span>
             </div>
             <div className="tx-card">
-              {items.map((t, ri) => (
-                <TxRow key={t.id} tx={t} cat={catMap.get(t.categoryId) || fallbackCat} index={gi * 3 + ri}
-                  onPress={onPress} showList={showList} listName={showList && listMap ? (listMap.get(t.listId) || {}).name : ""} />
-              ))}
+              {items.map((t, ri) => {
+                const l = listMap ? listMap.get(t.listId) : null;
+                return (
+                  <TxRow key={t.id} tx={t} cat={catMap.get(t.categoryId) || fallbackCat} index={gi * 3 + ri}
+                    onPress={onPress} showList={showList} listName={showList && l ? l.name : ""}
+                    showAuthor={!!(l && l.shared)} />
+                );
+              })}
             </div>
           </div>
         );
@@ -3281,7 +3286,7 @@ export default function App() {
         {visibleTxs.length > 0 && (
           <section className="tx-section">
             <div className="section-title">Movimientos{selDetail ? ` · ${selDetail.cat.name}` : ""}</div>
-            <GroupedTxList txs={visibleTxs} catMap={catMap} onPress={(t) => { haptic(); setActionTx(t); }} animKey={animKey} />
+            <GroupedTxList txs={visibleTxs} catMap={catMap} listMap={listMap} onPress={(t) => { haptic(); setActionTx(t); }} animKey={animKey} />
           </section>
         )}
         </div>
