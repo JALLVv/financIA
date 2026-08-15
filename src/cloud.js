@@ -12,12 +12,17 @@ export const supabase = cloudEnabled ? createClient(cfg.supabaseUrl, cfg.supabas
 
 export const EMPTY_SOCIAL = {
   profile: null, friends: [], notifications: [],
-  lists: [], members: [], categories: [], transactions: [],
+  lists: [], members: [], categories: [], transactions: [], recurring: [],
   people: new Map(),
 };
 
 /* filas de Supabase → forma que usa la app */
 const mapCat = (c) => ({ id: c.id, listId: c.list_id, name: c.name, emoji: c.emoji, color: c.color, shared: true });
+const mapRule = (r) => ({
+  id: r.id, listId: r.list_id, categoryId: r.category_id || null, toListId: r.to_list_id || null,
+  type: r.type, amount: Number(r.amount), description: r.description || "",
+  frequency: r.frequency, startDate: r.start_date, nextDate: r.next_date, shared: true,
+});
 const mapTx = (t) => ({
   id: t.id, listId: t.list_id, categoryId: t.category_id, type: t.type,
   amount: Number(t.amount), description: t.description || "", date: t.date,
@@ -36,7 +41,7 @@ export async function fetchSocial(uid) {
     .lt("created_at", new Date(Date.now() - NOTIF_TTL_MS).toISOString())
     .then(() => {}, () => {});
 
-  const [prof, fr, notifs, lists, members, cats, txs] = await Promise.all([
+  const [prof, fr, notifs, lists, members, cats, txs, rules] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", uid).maybeSingle(),
     supabase.from("friendships").select("*"),
     supabase.from("notifications").select("*").order("created_at", { ascending: false }).limit(120),
@@ -44,6 +49,7 @@ export async function fetchSocial(uid) {
     supabase.from("list_members").select("*"),
     supabase.from("shared_categories").select("*").order("created_at", { ascending: true }),
     supabase.from("shared_transactions").select("*"),
+    supabase.from("recurring_rules").select("*").order("created_at", { ascending: true }),
   ]);
   const friendIds = (fr.data || []).map((f) => (f.user_lo === uid ? f.user_hi : f.user_lo));
   const memberIds = (members.data || []).map((m) => m.user_id);
@@ -70,6 +76,7 @@ export async function fetchSocial(uid) {
       listId: m.list_id, userId: m.user_id, profile: profileMap.get(m.user_id) || null,
     })),
     categories: (cats.data || []).map(mapCat),
+    recurring: (rules.data || []).map(mapRule),
     transactions: (txs.data || []).map((t) => {
       const m = mapTx(t);
       const p = profileMap.get(t.author);
@@ -94,7 +101,8 @@ export const cloudApi = {
   respondFriendRequest: (id, accept) => supabase.rpc("respond_friend_request", { request_id: id, accept }),
   removeFriend: (fid) => supabase.rpc("remove_friend", { friend_id: fid }),
 
-  createSharedList: (name) => supabase.rpc("create_shared_list", { list_name: name }),
+  createSharedList: (name, isPrivate = false) =>
+    supabase.rpc("create_shared_list", { list_name: name, is_private: isPrivate }),
   renameSharedList: (id, name) => supabase.from("shared_lists").update({ name }).eq("id", id),
   leaveSharedList: (id) => supabase.rpc("leave_shared_list", { target_list: id }),
   inviteToList: (listId, fid) => supabase.rpc("invite_to_list", { target_list: listId, friend_id: fid }),
@@ -118,6 +126,24 @@ export const cloudApi = {
     category_id: p.categoryId, type: p.type, amount: p.amount, description: p.description, date: p.date, photo: p.photo || null,
   }).eq("id", id),
   deleteTransaction: (id) => supabase.from("shared_transactions").delete().eq("id", id),
+
+  /* repeticiones: son del usuario, sólo sus dispositivos las ven */
+  addRecurring: (uid, r) => supabase.from("recurring_rules").insert({
+    owner: uid, list_id: r.listId, category_id: r.categoryId || null, to_list_id: r.toListId || null,
+    type: r.type, amount: r.amount, description: r.description || "",
+    frequency: r.frequency, start_date: r.startDate, next_date: r.nextDate,
+  }),
+  updateRecurring: (id, patch) => supabase.from("recurring_rules").update(patch).eq("id", id),
+  deleteRecurring: (id) => supabase.from("recurring_rules").delete().eq("id", id),
+  /* avance atómico: si otro dispositivo ya generó esta repetición, devuelve false */
+  claimRecurring: (id, expected, next) =>
+    supabase.rpc("claim_recurring", { rule_id: id, expected, new_next: next }),
+
+  /* ajustes y lista activa viajan con la cuenta */
+  saveState: (uid, patch) => supabase.from("profiles").update(patch).eq("id", uid),
+
+  /* sube de una sola vez lo que ya había en el dispositivo (una transacción) */
+  importLocalData: (payload) => supabase.rpc("import_local_data", { payload }),
 
   markNotificationsRead: () => supabase.from("notifications").update({ read: true }).eq("read", false),
   deleteNotification: (id) => supabase.from("notifications").delete().eq("id", id),
