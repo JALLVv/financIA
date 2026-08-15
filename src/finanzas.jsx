@@ -633,6 +633,16 @@ function colorFromEmoji(emoji) {
 /* ----------------------- Persistencia ----------------------- */
 const STORE_KEY = "finanzas_app_v1";
 
+/* identificador estable de este dispositivo: el servidor lo usa para no
+   repetir la subida inicial si se reintenta */
+function deviceToken() {
+  try {
+    let t = localStorage.getItem("finanzas:device");
+    if (!t) { t = uid() + uid() + Date.now().toString(36); localStorage.setItem("finanzas:device", t); }
+    return t;
+  } catch (e) { return null; }
+}
+
 function defaultData() {
   const listId = uid();
   const mk = (name, emoji, color) => ({ id: uid(), listId, name, emoji, color });
@@ -1592,11 +1602,17 @@ function useCloud(showToast) {
         return error ? false : !!d;
       },
       saveState: (patch) => { if (uid) cloudApi.saveState(uid, patch).then(() => {}, () => {}); },
-      importLocalData: async (payload) => {
-        const { data: d, error } = await cloudApi.importLocalData(payload);
+      importLocalData: async (payload, token) => {
+        const { data: d, error } = await cloudApi.importLocalData(payload, token);
         if (error) { err(error); return null; }
-        refetch();
         return d;
+      },
+      /* recarga esperando el resultado (refetch va con retardo y no se puede
+         esperar; aquí hace falta confirmar antes de vaciar nada) */
+      reload: async () => {
+        if (!uid) return null;
+        try { const s = await fetchSocial(uid); setSocial(s); setLoaded(true); return s; }
+        catch (e) { return null; }
       },
       markNotificationsRead: () => call(cloudApi.markNotificationsRead()),
       deleteNotification: (id) => call(cloudApi.deleteNotification(id)),
@@ -2685,6 +2701,7 @@ export default function App() {
   const [periodOpen, setPeriodOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
+  const [emptyNew, setEmptyNew] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [photoView, setPhotoView] = useState(null); // foto de movimiento a pantalla completa
@@ -2939,8 +2956,13 @@ export default function App() {
   const migratingRef = useRef(false);
   useEffect(() => {
     if (!cloud.ready || !cloud.uid || !data || migratedRef.current === cloud.uid) return;
+    /* hasta que no lleguen los datos de la cuenta no se decide nada: si no,
+       se toman decisiones creyendo que la cuenta está vacía */
+    if (!cloud.loaded) return;
     const mine = data.lists.filter((l) => !l.shared);
-    /* nada que subir, o sólo la lista de ejemplo que nadie llegó a tocar */
+    /* nada que subir, o sólo la lista de ejemplo que nadie llegó a tocar: esa
+       no se sube nunca, ni siquiera a una cuenta vacía — es del programa, no
+       del usuario, y acabaría apareciendo una "Personal" que nadie creó */
     if (!mine.length || data.pristine) {
       migratedRef.current = cloud.uid;
       if (mine.length) actions.clearLocalData();
@@ -2949,30 +2971,37 @@ export default function App() {
     migratedRef.current = cloud.uid;
     migratingRef.current = true;
     (async () => {
-      const ids = new Set(mine.map((l) => l.id));
-      try { await window.storage.set(STORE_KEY + "_respaldo", JSON.stringify(data)); } catch (e) {}
-      const n = await cloud.api.importLocalData({
-        lists: mine.map((l) => ({ id: l.id, name: l.name })),
-        categories: data.categories.filter((c) => ids.has(c.listId)),
-        transactions: data.transactions.filter((t) => ids.has(t.listId)),
-        recurring: data.recurring.filter((r) => ids.has(r.listId)),
-      });
-      migratingRef.current = false;
-      if (n == null) { migratedRef.current = null; return; } // falló: se reintenta
-      actions.clearLocalData();
-      showToast("☁️", `${n} lista${n === 1 ? "" : "s"} guardada${n === 1 ? "" : "s"} en tu cuenta`);
+      try {
+        const ids = new Set(mine.map((l) => l.id));
+        try { await window.storage.set(STORE_KEY + "_respaldo", JSON.stringify(data)); } catch (e) {}
+        const n = await cloud.api.importLocalData({
+          lists: mine.map((l) => ({ id: l.id, name: l.name })),
+          categories: data.categories.filter((c) => ids.has(c.listId)),
+          transactions: data.transactions.filter((t) => ids.has(t.listId)),
+          recurring: data.recurring.filter((r) => ids.has(r.listId)),
+        }, deviceToken());
+        if (n == null) { migratedRef.current = null; return; } // falló: se reintenta
+        /* sólo se vacía lo local cuando la copia de la cuenta está confirmada */
+        const fresh = await cloud.api.reload();
+        if (!fresh || fresh.lists.length === 0) return;
+        actions.clearLocalData();
+        if (n > 0) showToast("☁️", `${n} lista${n === 1 ? "" : "s"} guardada${n === 1 ? "" : "s"} en tu cuenta`);
+      } finally { migratingRef.current = false; }
     })();
-  }, [cloud.ready, cloud.uid, data, cloud.api, actions, showToast]);
+  }, [cloud.ready, cloud.loaded, cloud.uid, data, cloud.api, cloud.social.lists.length, actions, showToast]);
 
-  /* nunca quedarse sin ninguna lista: pasa al cerrar sesión tras haberlas
-     subido a la cuenta, y en una cuenta recién creada */
+  /* Sin sesión la app necesita al menos una lista para tener algo que pintar.
+     Con sesión NO se crea nada: inventar listas en la cuenta del usuario es
+     justo lo que hay que evitar; si no tiene ninguna, se le ofrece crearla. */
+  const creatingListRef = useRef(false);
   useEffect(() => {
-    if (!cloud.ready || !viewData || migratingRef.current) return;
-    if (cloud.uid && !cloud.loaded) return;          // aún llegando de la cuenta
-    if (viewData.lists.length) return;
-    if (!cloud.uid) migratedRef.current = null;      // sin sesión se puede volver a migrar
-    routedActions.createList("Personal", true);
-  }, [cloud.ready, cloud.loaded, cloud.uid, viewData && viewData.lists.length, routedActions]);
+    if (!cloud.ready || cloud.uid || !data || migratingRef.current) return;
+    if (data.lists.length || creatingListRef.current) return;
+    creatingListRef.current = true;
+    migratedRef.current = null;
+    actions.createList("Personal");
+    creatingListRef.current = false;
+  }, [cloud.ready, cloud.uid, data && data.lists.length, actions]);
 
   /* al iniciar sesión: reconciliar nombre y foto entre el perfil local y el de la nube */
   const syncedProfileRef = useRef(null);
@@ -3138,11 +3167,29 @@ export default function App() {
 
   /* sin lista activa no hay nada que pintar: pasa un instante al arrancar y
      justo después de subir las listas a la cuenta, mientras llegan de vuelta */
-  if (!data || !activeList) {
+  if (!data || (!activeList && (!cloud.uid || !cloud.loaded))) {
     return (
       <div className="fin-app">
         <style>{CSS}</style>
         <div className="spin" role="status" aria-label="Cargando" />
+      </div>
+    );
+  }
+
+  /* con sesión y sin ninguna lista: se ofrece crearla, nunca se crea sola */
+  if (!activeList) {
+    return (
+      <div className="fin-app">
+        <style>{CSS}</style>
+        <div className="fin-scroll" style={{ display: "grid", alignContent: "center" }}>
+          <EmptyState emoji="📋" title="Aún no tienes listas"
+            sub="Crea una para empezar a registrar tus movimientos." />
+          <button className="primary-btn" style={{ maxWidth: 320, margin: "0 auto" }}
+            onClick={() => { haptic(14); setEmptyNew(true); }}>Nueva lista</button>
+        </div>
+        <ListFormSheet open={emptyNew} onClose={() => setEmptyNew(false)} canShare={!!cloud.uid}
+          onCreate={(v, shared) => routedActions.createList(v, !shared)} />
+        <Toast msg={toast} />
       </div>
     );
   }
