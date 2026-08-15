@@ -895,6 +895,23 @@ function keyboardHeight() {
   return Math.min(h, Math.round(vh * 0.7));  // ningún teclado ocupa más
 }
 
+/* Cada hoja abierta es una capa propia: la que se abre encima tapa por
+   completo a la de debajo, incluidos sus toques. Antes todas compartían el
+   mismo z-index y sólo el orden del DOM decidía, así que la hoja de abajo
+   quedaba por encima del fondo oscuro de la de arriba. */
+const Z_BASE = 60, Z_MAX_LEVELS = 8;
+let layerCount = 0;
+function useLayer(active) {
+  const [level, setLevel] = useState(1);
+  useEffect(() => {
+    if (!active) return;
+    layerCount = Math.min(layerCount + 1, Z_MAX_LEVELS);
+    setLevel(layerCount);
+    return () => { layerCount = Math.max(0, layerCount - 1); };
+  }, [active]);
+  return { backdrop: Z_BASE + level * 2 - 1, front: Z_BASE + level * 2 };
+}
+
 /* Hoja modal estilo iOS con animación de cierre.
    Se eleva con el teclado (visualViewport) para que los campos no queden tapados. */
 function Sheet({ open, onClose, title, children, footer }) {
@@ -903,6 +920,11 @@ function Sheet({ open, onClose, title, children, footer }) {
   const [kb, setKb] = useState(0);
   const [avail, setAvail] = useState(0);
   const [animDone, setAnimDone] = useState(false);
+  /* corrección medida: no se confía en la cuenta, se comprueba dónde quedó */
+  const [adjust, setAdjust] = useState(0);
+  const sheetRef = useRef(null);
+  const adjustedRef = useRef(false);
+  const z = useLayer(mounted);
   useEffect(() => {
     if (open) { setMounted(true); setClosing(false); setAnimDone(false); }
     else if (mounted) {
@@ -929,7 +951,10 @@ function Sheet({ open, onClose, title, children, footer }) {
     const vv = window.visualViewport;
     let raf = null, downTimer = null, last = 0;
     const measure = keyboardHeight;
-    const commit = (v) => { last = v; setKb(v); setAvail(Math.round(vv.height)); };
+    const commit = (v) => {
+      last = v; setKb(v); setAvail(Math.round(vv.height));
+      if (v === 0) { adjustedRef.current = false; setAdjust(0); }
+    };
     const apply = () => {
       raf = null;
       const v = measure();
@@ -957,22 +982,41 @@ function Sheet({ open, onClose, title, children, footer }) {
     setTimeout(() => { try { t.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (err) {} }, 380);
   };
 
-  if (!mounted) return null;
-  /* con el fondo bloqueado, la hoja entera se eleva sobre el teclado; el
-     inline transform solo puede aplicarse cuando la animación de entrada
-     terminó (su fill-mode la sobreescribiría) */
   const lifted = animDone && !closing && kb > 0;
+
+  /* Red de seguridad medida, no calculada. El alto del teclado se deduce de
+     cómo coloca iOS los elementos fijos al desplazar el viewport visual, y esa
+     deducción es la que dejaba la hoja fuera de la pantalla por arriba. En vez
+     de suponer un sistema de coordenadas, se mira el síntoma: si el borde
+     superior de la hoja se ha salido, se la baja hasta volver a verlo. Sólo
+     puede bajarla, así que no cabe vaivén. */
+  useEffect(() => {
+    if (!lifted || adjustedRef.current) return;
+    const el = sheetRef.current;
+    if (!el) return;
+    const t = setTimeout(() => {
+      const arriba = el.getBoundingClientRect().top;
+      adjustedRef.current = true;
+      if (arriba < 4) setAdjust(Math.max(-260, arriba - 4));
+    }, 280);
+    return () => clearTimeout(t);
+  }, [lifted, kb]);
+
+  if (!mounted) return null;
+  const shift = Math.max(0, kb + adjust);
   return (
     <>
-      <div className={`sheet-backdrop ${closing ? "closing" : ""}`} onClick={onClose} />
-      <div className={`sheet ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={title}
+      <div className={`sheet-backdrop ${closing ? "closing" : ""}`} style={{ zIndex: z.backdrop }} onClick={onClose} />
+      <div ref={sheetRef} className={`sheet ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={title}
         onFocusCapture={onFieldFocus}
         onAnimationEnd={(e) => { if (e.target === e.currentTarget) setAnimDone(true); }}
         style={lifted
-          ? { animation: "none", transform: `translateY(-${kb}px)`,
-              maxHeight: avail ? `${Math.max(200, avail - 20)}px` : `calc(100dvh - ${kb}px - 20px)`,
+          ? { zIndex: z.front, animation: "none", transform: `translateY(-${shift}px)`,
+              maxHeight: avail ? `${Math.max(200, avail - 20)}px` : `calc(100dvh - ${shift}px - 20px)`,
               transition: "transform .22s var(--ease-ios)" }
-          : animDone && !closing ? { animation: "none", transition: "transform .22s var(--ease-ios)" } : undefined}>
+          : animDone && !closing
+            ? { zIndex: z.front, animation: "none", transition: "transform .22s var(--ease-ios)" }
+            : { zIndex: z.front }}>
         <div className="grabber" />
         {title != null && (
           <div className="sheet-title-row">
