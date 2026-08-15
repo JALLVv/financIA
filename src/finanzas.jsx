@@ -183,16 +183,6 @@ input::placeholder{color:var(--txt3);}
 .tx-amt{font-weight:700; font-size:15px; font-feature-settings:"tnum" 1; white-space:nowrap; letter-spacing:-.03em;}
 .tx-amt.inc{color:var(--green);} .tx-amt.exp{color:var(--txt);}
 .tx-badge{font-size:10px; font-weight:700; color:var(--txt3); text-align:right; margin-top:2px;}
-/* ---------- diagnóstico (5 toques en "Total") ---------- */
-.dbg-vp{position:fixed; left:0; right:0; bottom:0; height:3px; background:#F0F; z-index:9999; pointer-events:none;}
-.dbg-app{position:absolute; left:0; right:0; bottom:0; height:9px; background:#0FF; z-index:9998; pointer-events:none;}
-.dbg-panel{
-  position:fixed; left:8px; right:8px; bottom:64px; z-index:9999;
-  background:rgba(0,0,0,.88); color:#3F6; border:1px solid #3F6; border-radius:12px; padding:10px 12px;
-  font:700 11.5px/1.5 ui-monospace,Menlo,monospace; letter-spacing:0;
-}
-.dbg-panel b{color:#9FF; font-weight:700;}
-
 .content-swap{animation:swap .3s var(--ease-ios) both;}
 @keyframes swap{from{opacity:0; transform:translateY(7px)}to{opacity:1; transform:none}}
 
@@ -886,67 +876,6 @@ function keyboardHeight() {
   return Math.min(h, Math.round(vh * 0.7));  // ningún teclado ocupa más
 }
 
-/* Panel de diagnóstico: se abre con 5 toques en la palabra "Total" (o con
-   ?debug=1). La línea magenta marca el borde inferior del viewport y la cian
-   el de la app. Si la franja queda por debajo de la magenta, no la pinta la
-   app: está fuera del área que el sistema le concede. */
-function DebugPanel({ onClose }) {
-  const [info, setInfo] = useState({});
-  useEffect(() => {
-    /* las sondas van fijas, no absolutas: una sonda absoluta de 844 px dentro
-       de un documento de 797 creaba ella misma 47 px de desbordamiento y
-       cambiaba lo que venía a medir */
-    const mk = (css) => {
-      const d = document.createElement("div");
-      d.style.cssText = "position:fixed;visibility:hidden;top:0;left:0;width:1px;pointer-events:none;" + css;
-      document.body.appendChild(d);
-      return d;
-    };
-    const pDv = mk("height:100dvh"), pSv = mk("height:100svh"), pLv = mk("height:100lvh");
-    const pSafe = mk("padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)");
-    const h = (el) => Math.round(el.getBoundingClientRect().height);
-    const read = () => {
-      const vv = window.visualViewport;
-      const app = document.querySelector(".fin-app");
-      const r = app && app.getBoundingClientRect();
-      const cs = getComputedStyle(pSafe);
-      setInfo({
-        pantalla: `${screen.width}x${screen.height}`,
-        inner: `${window.innerWidth}x${window.innerHeight}`,
-        client: `${document.documentElement.clientWidth}x${document.documentElement.clientHeight}`,
-        visual: vv ? `${Math.round(vv.width)}x${Math.round(vv.height)} @${Math.round(vv.offsetTop)}` : "-",
-        "dvh/svh/lvh": `${h(pDv)}/${h(pSv)}/${h(pLv)}`,
-        "safe arriba/abajo": `${cs.paddingTop} / ${cs.paddingBottom}`,
-        app: r ? `alto ${Math.round(r.height)}, fondo ${Math.round(r.bottom)}` : "-",
-        body: `${Math.round(document.body.getBoundingClientRect().height)}`,
-        "scroll doc": `${Math.round(window.scrollY)} de ${Math.max(0, Math.round(document.documentElement.scrollHeight - document.documentElement.clientHeight))}`,
-        teclado: `${keyboardHeight()} (bruto ${vv ? Math.round(window.innerHeight - vv.height - vv.offsetTop) : "-"})`,
-        standalone: window.navigator.standalone ? "sí" : matchMedia("(display-mode: standalone)").matches ? "display-mode" : "no",
-        dpr: String(window.devicePixelRatio),
-      });
-    };
-    read();
-    const t = setInterval(read, 500);
-    window.addEventListener("resize", read);
-    if (window.visualViewport) window.visualViewport.addEventListener("resize", read);
-    return () => {
-      clearInterval(t);
-      window.removeEventListener("resize", read);
-      if (window.visualViewport) window.visualViewport.removeEventListener("resize", read);
-      [pDv, pSv, pLv, pSafe].forEach((d) => d.remove());
-    };
-  }, []);
-  return (
-    <>
-      <div className="dbg-vp" />
-      <div className="dbg-panel" onClick={onClose}>
-        {Object.entries(info).map(([k, v]) => <div key={k}><b>{k}</b> {v}</div>)}
-        <div style={{ opacity: 0.75, marginTop: 6 }}>magenta = fin del viewport · cian = fin de la app · toca para cerrar</div>
-      </div>
-    </>
-  );
-}
-
 /* Hoja modal estilo iOS con animación de cierre.
    Se eleva con el teclado (visualViewport) para que los campos no queden tapados. */
 function Sheet({ open, onClose, title, children, footer }) {
@@ -1332,7 +1261,7 @@ function useStickyHandoff(rootRef, count) {
   }, [rootRef, count]);
 }
 
-function GroupedTxList({ txs, catMap, onPress, listMap, showList, animKey }) {
+function GroupedTxList({ txs, catMap, onPress, listMap, showList, authorListIds, animKey }) {
   const [limit, setLimit] = useState(60);
   const sentinel = useRef(null);
   const rootRef = useRef(null);
@@ -1377,7 +1306,7 @@ function GroupedTxList({ txs, catMap, onPress, listMap, showList, animKey }) {
                 return (
                   <TxRow key={t.id} tx={t} cat={catMap.get(t.categoryId) || fallbackCat} index={gi * 3 + ri}
                     onPress={onPress} showList={showList} listName={showList && l ? l.name : ""}
-                    showAuthor={!!(l && l.shared)} />
+                    showAuthor={!!(authorListIds && authorListIds.has(t.listId))} />
                 );
               })}
             </div>
@@ -2184,7 +2113,7 @@ function ListSheet({ open, onClose, data, onSelect, onCreate, canShare }) {
 }
 
 /* ----------------------- Buscador ----------------------- */
-function SearchScreen({ requestClose, data, onPressTx }) {
+function SearchScreen({ requestClose, data, onPressTx, authorListIds }) {
   const now = new Date();
   const [q, setQ] = useState("");
   const [type, setType] = useState("both"); // both | expense | income
@@ -2297,7 +2226,7 @@ function SearchScreen({ requestClose, data, onPressTx }) {
             <EmptyState emoji="🔍" title="Sin resultados" sub="Prueba con otro texto o ajusta los filtros." />
           </div>
         ) : (
-          <GroupedTxList txs={results} catMap={catMap} listMap={listMap} showList onPress={onPressTx} animKey={"search"} />
+          <GroupedTxList txs={results} catMap={catMap} listMap={listMap} showList authorListIds={authorListIds} onPress={onPressTx} animKey={"search"} />
         )}
       </div>
       <PeriodSheet open={periodOpen} onClose={() => setPeriodOpen(false)} period={sPeriod} setPeriod={setSPeriod} txs={scopeTxs} />
@@ -2716,17 +2645,6 @@ export default function App() {
   const topObs = useRef(null);
   const [topH, setTopH] = useState(0);
 
-  /* diagnóstico: 5 toques seguidos en "Total" (o ?debug=1) */
-  const [dbg, setDbg] = useState(() => typeof location !== "undefined" && /[?&]debug=1/.test(location.search));
-  const tapRef = useRef({ n: 0, t: 0 });
-  const onLabelTap = useCallback(() => {
-    const now = Date.now();
-    const s = tapRef.current;
-    s.n = now - s.t < 700 ? s.n + 1 : 1;
-    s.t = now;
-    if (s.n >= 5) { s.n = 0; setDbg((d) => !d); }
-  }, []);
-
   /* alto real de la cabecera fija: las fechas se pegan justo debajo */
   const measureTop = useCallback((el) => {
     topRef.current = el;
@@ -2860,6 +2778,14 @@ export default function App() {
   const sharedCatIds = useMemo(() => new Set(cloud.social.categories.map((c) => c.id)), [cloud.social.categories]);
   const sharedTxIds = useMemo(() => new Set(cloud.social.transactions.map((t) => t.id)), [cloud.social.transactions]);
   const cloudRuleIds = useMemo(() => new Set(cloud.social.recurring.map((r) => r.id)), [cloud.social.recurring]);
+  /* listas donde tiene sentido decir quién registró cada movimiento: las que
+     tienen más de un miembro. Se cuenta de los miembros reales y no de la
+     marca "private", que puede haberse quedado desfasada en la base. */
+  const authorListIds = useMemo(() => {
+    const n = new Map();
+    for (const m of cloud.social.members) n.set(m.listId, (n.get(m.listId) || 0) + 1);
+    return new Set([...n.entries()].filter(([, c]) => c > 1).map(([id]) => id));
+  }, [cloud.social.members]);
 
   const viewData = useMemo(() => {
     if (!data) return null;
@@ -3231,7 +3157,7 @@ export default function App() {
 
         {/* ---------- balance ---------- */}
         <section className="balance-wrap" aria-live="polite">
-          <div className="balance-label" onClick={onLabelTap}>Total</div>
+          <div className="balance-label">Total</div>
           <div className="balance-row">
             <span className={`sign-dot ${totals.bal > 0.004 ? "sign-pos" : totals.bal < -0.004 ? "sign-neg" : "sign-zero"}`}>
               <Icon name={totals.bal > 0.004 ? "plus" : totals.bal < -0.004 ? "minus" : "equal"} size={15} color="#fff" stroke={3.2} />
@@ -3286,7 +3212,7 @@ export default function App() {
         {visibleTxs.length > 0 && (
           <section className="tx-section">
             <div className="section-title">Movimientos{selDetail ? ` · ${selDetail.cat.name}` : ""}</div>
-            <GroupedTxList txs={visibleTxs} catMap={catMap} listMap={listMap} onPress={(t) => { haptic(); setActionTx(t); }} animKey={animKey} />
+            <GroupedTxList txs={visibleTxs} catMap={catMap} listMap={listMap} authorListIds={authorListIds} onPress={(t) => { haptic(); setActionTx(t); }} animKey={animKey} />
           </section>
         )}
         </div>
@@ -3368,7 +3294,7 @@ export default function App() {
       {/* buscador y perfil */}
       <Overlay open={searchOpen} onClose={() => setSearchOpen(false)}>
         {({ requestClose }) => (
-          <SearchScreen requestClose={requestClose} data={viewData}
+          <SearchScreen requestClose={requestClose} data={viewData} authorListIds={authorListIds}
             onPressTx={(t) => { haptic(); setSearchOpen(false); setTimeout(() => setActionTx(t), 260); }} />
         )}
       </Overlay>
@@ -3390,8 +3316,6 @@ export default function App() {
 
       <Toast msg={toast} />
 
-      {dbg && <div className="dbg-app" />}
-      {dbg && <DebugPanel onClose={() => setDbg(false)} />}
     </div>
   );
 }
