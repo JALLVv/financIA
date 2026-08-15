@@ -867,10 +867,29 @@ function unlockBodyScroll() {
    y pertenece a otro sistema de medida. Por debajo de KB_MIN es ruido del
    sistema, y por encima del 70% de la pantalla no es un teclado. */
 const KB_MIN = 120;
+
+/* Alto contra el que se resuelve el bottom:0 de la hoja. Se mide con una
+   sonda fija en lugar de preguntar a window: innerHeight puede ir por su
+   cuenta (con la barra de estado reservada llega a diferir 47 px del área
+   visible) y mezclarlo con visualViewport elevaba la hoja de más, dejándola
+   pegada al borde superior. La sonda vive en el mismo sistema de
+   coordenadas que la hoja, así que no puede desajustarse. */
+let kbProbe = null;
+function layoutViewportHeight() {
+  if (typeof document === "undefined" || !document.body) return 0;
+  if (!kbProbe || !kbProbe.isConnected) {
+    kbProbe = document.createElement("div");
+    kbProbe.style.cssText = "position:fixed;top:0;left:0;width:0;height:100%;visibility:hidden;pointer-events:none";
+    document.body.appendChild(kbProbe);
+  }
+  return kbProbe.getBoundingClientRect().height;
+}
+
 function keyboardHeight() {
   const vv = typeof window !== "undefined" && window.visualViewport;
   if (!vv) return 0;
-  const vh = window.innerHeight;
+  const vh = layoutViewportHeight();
+  if (!vh) return 0;
   const h = Math.round(vh - vv.height - vv.offsetTop);
   if (h < KB_MIN) return 0;                  // ruido del sistema, no un teclado
   return Math.min(h, Math.round(vh * 0.7));  // ningún teclado ocupa más
@@ -882,6 +901,7 @@ function Sheet({ open, onClose, title, children, footer }) {
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
   const [kb, setKb] = useState(0);
+  const [avail, setAvail] = useState(0);
   const [animDone, setAnimDone] = useState(false);
   useEffect(() => {
     if (open) { setMounted(true); setClosing(false); setAnimDone(false); }
@@ -894,7 +914,10 @@ function Sheet({ open, onClose, title, children, footer }) {
   useEffect(() => {
     if (!mounted) return;
     lockBodyScroll();
-    return () => unlockBodyScroll();
+    /* si el evento de fin de animación no llega (movimiento reducido, pestaña
+       en segundo plano…), la hoja nunca se elevaría sobre el teclado */
+    const t = setTimeout(() => setAnimDone(true), 420);
+    return () => { clearTimeout(t); unlockBodyScroll(); };
   }, [mounted]);
   /* alto del teclado: solo la reducción del visual viewport (con el fondo
      bloqueado, el desplazamiento no entra en el cálculo → valor estable).
@@ -906,7 +929,7 @@ function Sheet({ open, onClose, title, children, footer }) {
     const vv = window.visualViewport;
     let raf = null, downTimer = null, last = 0;
     const measure = keyboardHeight;
-    const commit = (v) => { last = v; setKb(v); };
+    const commit = (v) => { last = v; setKb(v); setAvail(Math.round(vv.height)); };
     const apply = () => {
       raf = null;
       const v = measure();
@@ -946,7 +969,9 @@ function Sheet({ open, onClose, title, children, footer }) {
         onFocusCapture={onFieldFocus}
         onAnimationEnd={(e) => { if (e.target === e.currentTarget) setAnimDone(true); }}
         style={lifted
-          ? { animation: "none", transform: `translateY(-${kb}px)`, maxHeight: `calc(100dvh - ${kb}px - 20px)`, transition: "transform .22s var(--ease-ios)" }
+          ? { animation: "none", transform: `translateY(-${kb}px)`,
+              maxHeight: avail ? `${Math.max(200, avail - 20)}px` : `calc(100dvh - ${kb}px - 20px)`,
+              transition: "transform .22s var(--ease-ios)" }
           : animDone && !closing ? { animation: "none", transition: "transform .22s var(--ease-ios)" } : undefined}>
         <div className="grabber" />
         {title != null && (
@@ -1174,8 +1199,16 @@ const TxRow = memo(function TxRow({ tx, cat, onPress, showList, listName, showAu
 });
 
 /* Lista agrupada por fecha con carga incremental (rendimiento) */
-/* Contenedor con scroll más cercano (la app y el buscador tienen el suyo). */
+/* Contenedor con scroll más cercano (la app y el buscador tienen el suyo).
+
+   Se busca por clase y no por el overflow calculado: mientras hay una hoja
+   abierta el scroll de fondo se bloquea con overflow:hidden, y si el cambio
+   de lista ocurre en ese instante —que es justo lo que pasa al elegirla en
+   la hoja de listas— la búsqueda por overflow no encontraba nada y el relevo
+   de las fechas se quedaba sin enganchar. */
 function scrollParentOf(el) {
+  const known = el && el.closest && el.closest(".fin-scroll, .overlay-body");
+  if (known) return known;
   for (let p = el && el.parentElement; p; p = p.parentElement) {
     const o = getComputedStyle(p).overflowY;
     if (o === "auto" || o === "scroll") return p;
@@ -1186,9 +1219,8 @@ function scrollParentOf(el) {
 /* Relevo de fechas pegajosas: cuando el grupo siguiente empuja a la fecha
    pegada, ésta se desvanece y se encoge para cederle el sitio a la nueva
    en lugar de arrastrarse por detrás de la cabecera. */
-function useStickyHandoff(rootRef, count) {
+function useStickyHandoff(root, count) {
   useEffect(() => {
-    const root = rootRef.current;
     if (!root || !count) return;
     const sc = scrollParentOf(root);
     if (!sc) return;
@@ -1258,13 +1290,15 @@ function useStickyHandoff(rootRef, count) {
       if (raf) cancelAnimationFrame(raf);
       for (const it of items) { it.hdr.style.opacity = ""; it.hdr.style.transform = ""; }
     };
-  }, [rootRef, count]);
+  }, [root, count]);
 }
 
 function GroupedTxList({ txs, catMap, onPress, listMap, showList, authorListIds, animKey }) {
   const [limit, setLimit] = useState(60);
   const sentinel = useRef(null);
-  const rootRef = useRef(null);
+  /* el nodo en estado y no en ref: al cambiar de lista este div se remonta
+     (key={animKey}) y el efecto debe volver a medir sobre el nuevo */
+  const [rootEl, setRootEl] = useState(null);
   useEffect(() => { setLimit(60); }, [animKey]);
   useEffect(() => {
     if (!sentinel.current) return;
@@ -1285,11 +1319,11 @@ function GroupedTxList({ txs, catMap, onPress, listMap, showList, authorListIds,
     return [...map.entries()];
   }, [txs, limit]);
 
-  useStickyHandoff(rootRef, groups.length);
+  useStickyHandoff(rootEl, groups.length);
 
   const fallbackCat = { name: "Sin categoría", emoji: "❓", color: "#6B6B74" };
   return (
-    <div className="content-swap" key={animKey} ref={rootRef}>
+    <div className="content-swap" key={animKey} ref={setRootEl}>
       {groups.map(([date, items], gi) => {
         const dayTotal = items.reduce((s2, t) => s2 + (t.type === "income" ? t.amount : -t.amount), 0);
         const cls = dayTotal > 0.004 ? "pos" : dayTotal < -0.004 ? "neg" : "zero";
@@ -1434,11 +1468,13 @@ function useCloud(showToast) {
 
   const api = useMemo(() => {
     const err = (e) => showToast("⚠️", (e && e.message) || "Error de conexión");
+    /* devuelve si salió bien: los insert no devuelven filas, así que mirar el
+       dato no servía para distinguir el éxito del fallo */
     const call = async (q) => {
-      const { data: d, error } = await q;
-      if (error) { err(error); return null; }
+      const { error } = await q;
+      if (error) { err(error); return false; }
       refetch();
-      return d;
+      return true;
     };
     return {
       signIn: async (email, pass) => {
@@ -2601,7 +2637,11 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, cloudLis
       <TxFormSheet
         open={!!recEdit} onClose={() => setRecEdit(null)} data={data} defaultListId={data.activeListId} cloudListIds={cloudListIds}
         initial={recEdit && !recEdit.__new ? { id: recEdit.id, type: recEdit.type, amount: recEdit.amount, description: recEdit.description, listId: recEdit.listId, categoryId: recEdit.categoryId, date: recEdit.nextDate || recEdit.startDate, frequency: recEdit.frequency } : null}
-        onCreateCategory={(lid, p) => actions.createCategory(lid, p)}
+        onCreateCategory={async (lid, p) => {
+          const c = await actions.createCategory(lid, p);
+          if (!c) showToast("⚠️", "No se pudo crear la categoría");
+          return c;
+        }}
         onSubmit={(p) => {
           if (recEdit && !recEdit.__new) {
             actions.updateRecurring(recEdit.id, p);
@@ -2826,7 +2866,7 @@ export default function App() {
     deleteCategory: (id) => (sharedCatIds.has(id) ? cloud.api.deleteCategory(id) : actions.deleteCategory(id)),
     renameList: (id, name) => (cloudListIds.has(id) ? cloud.api.renameSharedList(id, name) : actions.renameList(id, name)),
     deleteList: (id) => (cloudListIds.has(id) ? cloud.api.leaveSharedList(id) : actions.deleteList(id)),
-    addTransaction: (p) => {
+    addTransaction: async (p) => {
       /* con repetición: la regla es del usuario, no de la lista (así no se
          duplica entre miembros); el generador crea luego las instancias */
       if (p.frequency && p.frequency !== "none") {
@@ -2836,9 +2876,10 @@ export default function App() {
             description: p.description, frequency: p.frequency, startDate: p.date, nextDate: p.date,
           });
         }
-        return actions.addTransaction(p);
+        actions.addTransaction(p); return true;
       }
-      return cloudListIds.has(p.listId) ? cloud.api.addTransaction(p) : actions.addTransaction(p);
+      if (cloudListIds.has(p.listId)) return cloud.api.addTransaction(p);
+      actions.addTransaction(p); return true;
     },
     addTransferRule: (p) => {
       if (cloud.uid && cloudListIds.has(p.listId)) {
@@ -3226,26 +3267,40 @@ export default function App() {
       {/* ---------- hojas ---------- */}
       <TxFormSheet
         open={addOpen} onClose={() => setAddOpen(false)} data={viewData} defaultListId={viewData.activeListId} cloudListIds={cloudListIds} allowTransfer
-        onCreateCategory={(lid, p) => routedActions.createCategory(lid, p)}
-        onSubmit={(p) => {
+        onCreateCategory={async (lid, p) => {
+          const c = await routedActions.createCategory(lid, p);
+          if (!c) showToast("⚠️", "No se pudo crear la categoría");
+          return c;
+        }}
+        onSubmit={async (p) => {
           if (p.type === "transfer") {
-            if (p.frequency && p.frequency !== "none") { actions.addTransferRule(p); showToast("🔁", "Transferencia recurrente creada"); }
+            if (p.frequency && p.frequency !== "none") { await routedActions.addTransferRule(p); showToast("🔁", "Transferencia recurrente creada"); }
             else addTransfer(p);
             return;
           }
-          routedActions.addTransaction(p);
-          showToast(p.type === "income" ? "💚" : "✅", p.frequency !== "none" ? "Recurrencia creada" : "Movimiento agregado");
+          /* el aviso sólo cuando está guardado de verdad: antes salía siempre,
+             así que un fallo se veía igual que un éxito */
+          const ok = await routedActions.addTransaction(p);
+          if (ok === false) showToast("⚠️", "No se pudo guardar el movimiento");
+          else showToast(p.type === "income" ? "💚" : "✅", p.frequency !== "none" ? "Recurrencia creada" : "Movimiento agregado");
         }}
       />
       <TxFormSheet
         open={!!editTx} onClose={() => setEditTx(null)} data={viewData} defaultListId={viewData.activeListId} initial={editTx} cloudListIds={cloudListIds}
-        onCreateCategory={(lid, p) => routedActions.createCategory(lid, p)}
-        onSubmit={(p) => { routedActions.editTransaction(editTx.id, p); showToast("✏️", "Movimiento actualizado"); }}
+        onCreateCategory={async (lid, p) => {
+          const c = await routedActions.createCategory(lid, p);
+          if (!c) showToast("⚠️", "No se pudo crear la categoría");
+          return c;
+        }}
+        onSubmit={async (p) => {
+          const ok = await routedActions.editTransaction(editTx.id, p);
+          showToast(ok === false ? "⚠️" : "✏️", ok === false ? "No se pudo guardar el cambio" : "Movimiento actualizado");
+        }}
       />
       <PeriodSheet open={periodOpen} onClose={() => setPeriodOpen(false)} period={period} setPeriod={setPeriod} txs={listTxs} />
       <NotificationsSheet open={notifOpen} onClose={() => setNotifOpen(false)} cloud={cloud} />
       <ListSheet open={listOpen} onClose={() => setListOpen(false)} data={viewData} canShare={!!cloud.uid}
-        onSelect={(id) => actions.setActiveList(id)}
+        onSelect={(id) => routedActions.setActiveList(id)}
         onCreate={async (name, shared) => {
           const r = await routedActions.createList(name, !shared);
           if (!cloud.uid) showToast("✨", "Lista creada");
