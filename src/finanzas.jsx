@@ -638,6 +638,7 @@ function defaultData() {
   const mk = (name, emoji, color) => ({ id: uid(), listId, name, emoji, color });
   return {
     version: 1,
+    pristine: true,
     profile: { name: "", photo: null },
     settings: { accumulate: true },
     activeListId: listId,
@@ -660,8 +661,11 @@ async function loadData() {
     const r = await window.storage.get(STORE_KEY);
     if (r && r.value) {
       const d = JSON.parse(r.value);
-      if (d && d.lists && d.lists.length) {
+      /* sin exigir listas: tras subirlas a la cuenta el almacén local queda
+         vacío a propósito, y no debe recrearse la lista de ejemplo */
+      if (d && Array.isArray(d.lists)) {
         if (!d.settings) d.settings = { accumulate: true };
+        if (!Array.isArray(d.recurring)) d.recurring = [];
         return d;
       }
     }
@@ -1431,6 +1435,10 @@ function notifToastInfo(n) {
 
 function useCloud(showToast) {
   const [session, setSession] = useState(null);
+  /* ready = ya se sabe si hay sesión; loaded = ya llegaron los datos de la
+     cuenta. Antes de ambas cosas no se toca nada local. */
+  const [ready, setReady] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [social, setSocial] = useState(EMPTY_SOCIAL);
   const uid = session && session.user ? session.user.id : null;
   const refetchTimer = useRef(null);
@@ -1440,22 +1448,23 @@ function useCloud(showToast) {
     if (!uid) return;
     clearTimeout(refetchTimer.current);
     refetchTimer.current = setTimeout(async () => {
-      try { setSocial(await fetchSocial(uid)); }
+      try { setSocial(await fetchSocial(uid)); setLoaded(true); }
       catch (e) { console.error("No se pudo sincronizar", e); }
     }, 200);
   }, [uid]);
 
   /* sesión */
   useEffect(() => {
-    if (!cloudEnabled) return;
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    if (!cloudEnabled) { setReady(true); return; }
+    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => { setSession(s); setReady(true); });
     return () => sub.subscription.unsubscribe();
   }, []);
 
   /* datos + tiempo real */
   useEffect(() => {
-    if (!uid) { setSocial(EMPTY_SOCIAL); return; }
+    if (!uid) { setSocial(EMPTY_SOCIAL); setLoaded(false); return; }
+    setLoaded(false);
     refetch();
     let ch = supabase.channel("social-" + uid)
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${uid}` }, (payload) => {
@@ -1465,7 +1474,7 @@ function useCloud(showToast) {
           if (t) showToast(t.emoji, t.text);
         }
       });
-    for (const t of ["shared_transactions", "shared_categories", "shared_lists", "list_members", "friendships", "friend_requests", "profiles"]) {
+    for (const t of ["shared_transactions", "shared_categories", "shared_lists", "list_members", "recurring_rules", "friendships", "friend_requests", "profiles"]) {
       ch = ch.on("postgres_changes", { event: "*", schema: "public", table: t }, refetch);
     }
     ch.subscribe();
@@ -1531,10 +1540,10 @@ function useCloud(showToast) {
         if (error) err(error); else showToast("👋", "Amigo eliminado");
         refetch();
       },
-      createSharedList: async (name) => {
-        const { data: d, error } = await cloudApi.createSharedList(name);
+      createSharedList: async (name, isPrivate = false) => {
+        const { data: d, error } = await cloudApi.createSharedList(name, isPrivate);
         if (error) { err(error); return null; }
-        showToast("✨", "Lista compartida creada");
+        showToast("✨", isPrivate ? "Lista creada" : "Lista compartida creada");
         refetch();
         return d;
       },
@@ -1575,6 +1584,20 @@ function useCloud(showToast) {
       addTransaction: (p) => call(cloudApi.addTransaction(uid, p)),
       editTransaction: (id, p) => call(cloudApi.editTransaction(id, p)),
       deleteTransaction: (id) => call(cloudApi.deleteTransaction(id)),
+      addRecurring: (r) => call(cloudApi.addRecurring(uid, r)),
+      updateRecurring: (id, p) => call(cloudApi.updateRecurring(id, p)),
+      deleteRecurring: (id) => call(cloudApi.deleteRecurring(id)),
+      claimRecurring: async (id, expected, next) => {
+        const { data: d, error } = await cloudApi.claimRecurring(id, expected, next);
+        return error ? false : !!d;
+      },
+      saveState: (patch) => { if (uid) cloudApi.saveState(uid, patch).then(() => {}, () => {}); },
+      importLocalData: async (payload) => {
+        const { data: d, error } = await cloudApi.importLocalData(payload);
+        if (error) { err(error); return null; }
+        refetch();
+        return d;
+      },
       markNotificationsRead: () => call(cloudApi.markNotificationsRead()),
       deleteNotification: (id) => call(cloudApi.deleteNotification(id)),
       enablePush: async () => {
@@ -1600,7 +1623,7 @@ function useCloud(showToast) {
     };
   }, [uid, refetch, showToast]);
 
-  return { enabled: cloudEnabled, session, uid, social, api, refetch };
+  return { enabled: cloudEnabled, ready, loaded, session, uid, social, api, refetch };
 }
 
 /* ----------------------- Social: acceso, notificaciones, invitaciones ----------------------- */
@@ -1780,7 +1803,7 @@ function DatePill({ value, onChange }) {
   );
 }
 
-function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, onCreateCategory, sharedListIds, allowTransfer }) {
+function TxFormSheet({ open, onClose, data, onSubmit, initial, defaultListId, onCreateCategory, cloudListIds, allowTransfer }) {
   const editing = !!(initial && initial.id);
   const [type, setType] = useState("expense");
   const [amount, setAmount] = useState("");
@@ -2287,7 +2310,7 @@ function GrayIconBubble({ emoji, children }) {
   );
 }
 
-function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedListIds }) {
+function ProfileScreen({ requestClose, data, actions, showToast, cloud, cloudListIds }) {
   const [open, setOpen] = useState(null); // 'friends' | 'cats' | 'lists' | 'rec'
   const [catListId, setCatListId] = useState(data.activeListId);
   const [catForm, setCatForm] = useState(null);   // {initial} | 'new'
@@ -2621,11 +2644,12 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, sharedLi
       />
       <ListFormSheet open={newList} onClose={() => setNewList(false)} canShare={!!(cloud.enabled && cloud.uid)}
         onCreate={(v, shared) => {
-          if (shared) cloud.api.createSharedList(v);
-          else { actions.createList(v); showToast("✨", "Lista creada"); }
+          const r = actions.createList(v, !shared);
+          if (!cloud || !cloud.uid) showToast("✨", "Lista creada");
+          return r;
         }} />
       <TxFormSheet
-        open={!!recEdit} onClose={() => setRecEdit(null)} data={data} defaultListId={data.activeListId} sharedListIds={sharedListIds}
+        open={!!recEdit} onClose={() => setRecEdit(null)} data={data} defaultListId={data.activeListId} cloudListIds={cloudListIds}
         initial={recEdit && !recEdit.__new ? { id: recEdit.id, type: recEdit.type, amount: recEdit.amount, description: recEdit.description, listId: recEdit.listId, categoryId: recEdit.categoryId, date: recEdit.nextDate || recEdit.startDate, frequency: recEdit.frequency } : null}
         onCreateCategory={(lid, p) => actions.createCategory(lid, p)}
         onSubmit={(p) => {
@@ -2726,8 +2750,10 @@ export default function App() {
     return () => { alive = false; document.removeEventListener("visibilitychange", onVis); };
   }, []);
 
+  /* cualquier cambio deja de ser el estado de ejemplo: así, al iniciar
+     sesión, no se sube a la cuenta una lista de ejemplo que nadie tocó */
   const update = useCallback((fn) => {
-    setData((d) => { const nd = fn(d); persist(nd); return nd; });
+    setData((d) => { const nd = { ...fn(d), pristine: false }; persist(nd); return nd; });
   }, []);
 
   /* ----------------- acciones ----------------- */
@@ -2800,21 +2826,38 @@ export default function App() {
       ...d,
       recurring: d.recurring.map((r) => (r.id === id ? { ...r, nextDate } : r)),
     })),
+    /* tras subir los datos a la cuenta, el dispositivo deja de ser el dueño */
+    clearLocalData: () => update((d) => ({ ...d, lists: [], categories: [], transactions: [], recurring: [] })),
   }), [update]);
 
-  /* ----------------- fusión con datos compartidos (nube) ----------------- */
-  const sharedListIds = useMemo(() => new Set(cloud.social.lists.map((l) => l.id)), [cloud.social.lists]);
+  /* ----------------- fusión con los datos de la cuenta ----------------- */
+  /* cloudListIds = listas que viven en la cuenta (privadas y compartidas);
+     l.shared = compartida con otras personas, que es lo que distingue la
+     interfaz (🤫 / 👥) */
+  const cloudListIds = useMemo(() => new Set(cloud.social.lists.map((l) => l.id)), [cloud.social.lists]);
   const sharedCatIds = useMemo(() => new Set(cloud.social.categories.map((c) => c.id)), [cloud.social.categories]);
   const sharedTxIds = useMemo(() => new Set(cloud.social.transactions.map((t) => t.id)), [cloud.social.transactions]);
+  const cloudRuleIds = useMemo(() => new Set(cloud.social.recurring.map((r) => r.id)), [cloud.social.recurring]);
 
   const viewData = useMemo(() => {
     if (!data) return null;
-    if (!cloud.uid || cloud.social.lists.length === 0) return data;
+    if (!cloud.uid) return data;
+    const lists = [
+      ...data.lists,
+      ...cloud.social.lists.map((l) => ({ id: l.id, name: l.name, shared: !l.private, owner: l.owner })),
+    ];
+    /* la lista activa pudo quedarse en una que ya no existe (otro dispositivo
+       la borró, o acaba de subirse todo a la cuenta) */
+    const active = lists.some((l) => l.id === data.activeListId)
+      ? data.activeListId
+      : (lists[0] && lists[0].id) || data.activeListId;
     return {
       ...data,
-      lists: [...data.lists, ...cloud.social.lists.map((l) => ({ id: l.id, name: l.name, shared: true, owner: l.owner }))],
+      lists,
+      activeListId: active,
       categories: [...data.categories, ...cloud.social.categories],
       transactions: [...data.transactions, ...cloud.social.transactions],
+      recurring: [...data.recurring, ...cloud.social.recurring],
     };
   }, [data, cloud.uid, cloud.social]);
 
@@ -2825,19 +2868,50 @@ export default function App() {
   const routedActions = useMemo(() => ({
     ...actions,
     setProfile: (patch) => { actions.setProfile(patch); if (cloud.uid) cloud.api.syncProfile(patch); },
-    createCategory: (listId, p) => (sharedListIds.has(listId) ? cloud.api.addCategory(listId, p) : actions.createCategory(listId, p)),
+    /* con sesión abierta toda lista nueva nace en la cuenta */
+    createList: (name, isPrivate = true) =>
+      (cloud.uid ? cloud.api.createSharedList(name, isPrivate) : actions.createList(name)),
+    setSetting: (patch) => { actions.setSetting(patch); if (cloud.uid) cloud.api.saveState({ settings: patch }); },
+    setActiveList: (id) => { actions.setActiveList(id); if (cloud.uid && cloudListIds.has(id)) cloud.api.saveState({ active_list: id }); },
+    createCategory: (listId, p) => (cloudListIds.has(listId) ? cloud.api.addCategory(listId, p) : actions.createCategory(listId, p)),
     updateCategory: (id, patch) => (sharedCatIds.has(id) ? cloud.api.updateCategory(id, patch) : actions.updateCategory(id, patch)),
     deleteCategory: (id) => (sharedCatIds.has(id) ? cloud.api.deleteCategory(id) : actions.deleteCategory(id)),
-    renameList: (id, name) => (sharedListIds.has(id) ? cloud.api.renameSharedList(id, name) : actions.renameList(id, name)),
-    deleteList: (id) => (sharedListIds.has(id) ? cloud.api.leaveSharedList(id) : actions.deleteList(id)),
+    renameList: (id, name) => (cloudListIds.has(id) ? cloud.api.renameSharedList(id, name) : actions.renameList(id, name)),
+    deleteList: (id) => (cloudListIds.has(id) ? cloud.api.leaveSharedList(id) : actions.deleteList(id)),
     addTransaction: (p) => {
-      /* con repetición: la regla vive en este dispositivo (evita duplicados
-         entre miembros); el generador correspondiente crea las instancias */
-      if (p.frequency && p.frequency !== "none") return actions.addTransaction(p);
-      return sharedListIds.has(p.listId) ? cloud.api.addTransaction(p) : actions.addTransaction(p);
+      /* con repetición: la regla es del usuario, no de la lista (así no se
+         duplica entre miembros); el generador crea luego las instancias */
+      if (p.frequency && p.frequency !== "none") {
+        if (cloud.uid && cloudListIds.has(p.listId)) {
+          return cloud.api.addRecurring({
+            listId: p.listId, categoryId: p.categoryId, type: p.type, amount: p.amount,
+            description: p.description, frequency: p.frequency, startDate: p.date, nextDate: p.date,
+          });
+        }
+        return actions.addTransaction(p);
+      }
+      return cloudListIds.has(p.listId) ? cloud.api.addTransaction(p) : actions.addTransaction(p);
     },
+    addTransferRule: (p) => {
+      if (cloud.uid && cloudListIds.has(p.listId)) {
+        return cloud.api.addRecurring({
+          listId: p.listId, toListId: p.toListId, type: "transfer", amount: p.amount,
+          description: p.description || "", frequency: p.frequency, startDate: p.date, nextDate: p.date,
+        });
+      }
+      return actions.addTransferRule(p);
+    },
+    updateRecurring: (id, p) => {
+      if (!cloudRuleIds.has(id)) return actions.updateRecurring(id, p);
+      return cloud.api.updateRecurring(id, {
+        list_id: p.listId, category_id: p.categoryId, type: p.type, amount: p.amount,
+        description: p.description, next_date: p.date,
+        ...(p.frequency && p.frequency !== "none" ? { frequency: p.frequency } : {}),
+      });
+    },
+    deleteRecurring: (id) => (cloudRuleIds.has(id) ? cloud.api.deleteRecurring(id) : actions.deleteRecurring(id)),
     editTransaction: (id, p) => {
-      const was = sharedTxIds.has(id), now = sharedListIds.has(p.listId);
+      const was = sharedTxIds.has(id), now = cloudListIds.has(p.listId);
       if (was && now) return cloud.api.editTransaction(id, p);
       if (!was && !now) return actions.editTransaction(id, p);
       if (was && !now) { cloud.api.deleteTransaction(id); return actions.addTransaction(p); }
@@ -2856,7 +2930,49 @@ export default function App() {
         else actions.deleteTransaction(tid);
       }
     },
-  }), [actions, cloud.api, cloud.uid, sharedListIds, sharedCatIds, sharedTxIds]);
+  }), [actions, cloud.api, cloud.uid, cloudListIds, sharedCatIds, sharedTxIds, cloudRuleIds]);
+
+  /* ---- al iniciar sesión: subir lo que ya había en el dispositivo ----
+     Una sola vez y en una única transacción del servidor. Antes de vaciar
+     nada se guarda una copia de seguridad local. */
+  const migratedRef = useRef(null);
+  const migratingRef = useRef(false);
+  useEffect(() => {
+    if (!cloud.ready || !cloud.uid || !data || migratedRef.current === cloud.uid) return;
+    const mine = data.lists.filter((l) => !l.shared);
+    /* nada que subir, o sólo la lista de ejemplo que nadie llegó a tocar */
+    if (!mine.length || data.pristine) {
+      migratedRef.current = cloud.uid;
+      if (mine.length) actions.clearLocalData();
+      return;
+    }
+    migratedRef.current = cloud.uid;
+    migratingRef.current = true;
+    (async () => {
+      const ids = new Set(mine.map((l) => l.id));
+      try { await window.storage.set(STORE_KEY + "_respaldo", JSON.stringify(data)); } catch (e) {}
+      const n = await cloud.api.importLocalData({
+        lists: mine.map((l) => ({ id: l.id, name: l.name })),
+        categories: data.categories.filter((c) => ids.has(c.listId)),
+        transactions: data.transactions.filter((t) => ids.has(t.listId)),
+        recurring: data.recurring.filter((r) => ids.has(r.listId)),
+      });
+      migratingRef.current = false;
+      if (n == null) { migratedRef.current = null; return; } // falló: se reintenta
+      actions.clearLocalData();
+      showToast("☁️", `${n} lista${n === 1 ? "" : "s"} guardada${n === 1 ? "" : "s"} en tu cuenta`);
+    })();
+  }, [cloud.ready, cloud.uid, data, cloud.api, actions, showToast]);
+
+  /* nunca quedarse sin ninguna lista: pasa al cerrar sesión tras haberlas
+     subido a la cuenta, y en una cuenta recién creada */
+  useEffect(() => {
+    if (!cloud.ready || !viewData || migratingRef.current) return;
+    if (cloud.uid && !cloud.loaded) return;          // aún llegando de la cuenta
+    if (viewData.lists.length) return;
+    if (!cloud.uid) migratedRef.current = null;      // sin sesión se puede volver a migrar
+    routedActions.createList("Personal", true);
+  }, [cloud.ready, cloud.loaded, cloud.uid, viewData && viewData.lists.length, routedActions]);
 
   /* al iniciar sesión: reconciliar nombre y foto entre el perfil local y el de la nube */
   const syncedProfileRef = useRef(null);
@@ -2872,6 +2988,13 @@ export default function App() {
     if (!p.name && data.profile.name) up.name = data.profile.name;
     if (!p.photo && data.profile.photo) up.photo = data.profile.photo;
     if (Object.keys(up).length) cloud.api.syncProfile(up);
+    /* ajustes y lista activa: los de la cuenta mandan si existen */
+    if (p.settings && typeof p.settings === "object" && Object.keys(p.settings).length) {
+      actions.setSetting(p.settings);
+    } else if (data.settings) {
+      cloud.api.saveState({ settings: data.settings });
+    }
+    if (p.active_list) actions.setActiveList(p.active_list);
   }, [cloud.social.profile, data]);
 
   /* ----------------- datos derivados ----------------- */
@@ -2936,14 +3059,16 @@ export default function App() {
     if (!data || !viewData || sharedRecurringBusy.current) return;
     const isLocal = (id) => data.lists.some((l) => l.id === id);
     const today = todayStr();
-    const due = data.recurring.filter((r) => {
-      const shared = !isLocal(r.listId) || (r.type === "transfer" && r.toListId && !isLocal(r.toListId));
+    /* las reglas puramente locales las genera runRecurring al guardar; aquí
+       van las que viven en la cuenta o tocan alguna lista de la cuenta */
+    const due = viewData.recurring.filter((r) => {
+      const cloudy = r.shared || !isLocal(r.listId) || (r.type === "transfer" && r.toListId && !isLocal(r.toListId));
       const next = r.nextDate || r.startDate;
-      return shared && next && next <= today;
+      return cloudy && next && next <= today;
     });
     if (!due.length) return;
     /* esperar a que las listas compartidas estén cargadas */
-    const ready = (id) => isLocal(id) || sharedListIds.has(id);
+    const ready = (id) => isLocal(id) || cloudListIds.has(id);
     if (!due.every((r) => ready(r.listId) && (!r.toListId || ready(r.toListId)))) return;
     sharedRecurringBusy.current = true;
     (async () => {
@@ -2953,6 +3078,10 @@ export default function App() {
           const anchor = parseD(r.startDate).getDate();
           let guard = 0;
           while (next && next <= today && guard < 500) {
+            const after = advance(next, r.frequency, anchor);
+            /* la fecha se reserva ANTES de crear nada: si otro dispositivo
+               tuyo ya generó esta ocurrencia, aquí no se repite */
+            if (r.shared && !(await cloud.api.claimRecurring(r.id, next, after))) break;
             if (r.type === "transfer" && r.toListId) {
               const fromList = listMap.get(r.listId), toList = listMap.get(r.toListId);
               if (!fromList || !toList) break;
@@ -2966,14 +3095,14 @@ export default function App() {
             } else {
               await routedActions.addTransaction({ type: r.type, amount: r.amount, description: r.description, listId: r.listId, categoryId: r.categoryId, date: next, frequency: "none" });
             }
-            next = advance(next, r.frequency, anchor);
-            actions.setRecurringNext(r.id, next);
+            if (!r.shared) actions.setRecurringNext(r.id, after);
+            next = after;
             guard++;
           }
         }
       } finally { sharedRecurringBusy.current = false; }
     })();
-  }, [data && data.recurring, sharedListIds, viewData]);
+  }, [viewData && viewData.recurring, cloudListIds, viewData]);
 
   const chartGroups = useMemo(() => {
     const m = new Map();
@@ -3007,7 +3136,9 @@ export default function App() {
   const chartKey = data ? `${data.activeListId}|${period.mode}|${period.year}|${period.month}|${txType}` : "";
   const selDetail = selectedBar ? chartGroups.find((g) => g.cat.id === selectedBar) : null;
 
-  if (!data) {
+  /* sin lista activa no hay nada que pintar: pasa un instante al arrancar y
+     justo después de subir las listas a la cuenta, mientras llegan de vuelta */
+  if (!data || !activeList) {
     return (
       <div className="fin-app">
         <style>{CSS}</style>
@@ -3116,7 +3247,7 @@ export default function App() {
 
       {/* ---------- hojas ---------- */}
       <TxFormSheet
-        open={addOpen} onClose={() => setAddOpen(false)} data={viewData} defaultListId={viewData.activeListId} sharedListIds={sharedListIds} allowTransfer
+        open={addOpen} onClose={() => setAddOpen(false)} data={viewData} defaultListId={viewData.activeListId} cloudListIds={cloudListIds} allowTransfer
         onCreateCategory={(lid, p) => routedActions.createCategory(lid, p)}
         onSubmit={(p) => {
           if (p.type === "transfer") {
@@ -3129,7 +3260,7 @@ export default function App() {
         }}
       />
       <TxFormSheet
-        open={!!editTx} onClose={() => setEditTx(null)} data={viewData} defaultListId={viewData.activeListId} initial={editTx} sharedListIds={sharedListIds}
+        open={!!editTx} onClose={() => setEditTx(null)} data={viewData} defaultListId={viewData.activeListId} initial={editTx} cloudListIds={cloudListIds}
         onCreateCategory={(lid, p) => routedActions.createCategory(lid, p)}
         onSubmit={(p) => { routedActions.editTransaction(editTx.id, p); showToast("✏️", "Movimiento actualizado"); }}
       />
@@ -3138,8 +3269,9 @@ export default function App() {
       <ListSheet open={listOpen} onClose={() => setListOpen(false)} data={viewData} canShare={!!cloud.uid}
         onSelect={(id) => actions.setActiveList(id)}
         onCreate={async (name, shared) => {
-          if (shared) { const id = await cloud.api.createSharedList(name); if (id) actions.setActiveList(id); }
-          else { actions.createList(name); showToast("✨", "Lista creada"); }
+          const r = await routedActions.createList(name, !shared);
+          if (!cloud.uid) showToast("✨", "Lista creada");
+          if (typeof r === "string") routedActions.setActiveList(r);
         }} />
 
       {/* hoja de acciones del movimiento */}
@@ -3190,7 +3322,7 @@ export default function App() {
       </Overlay>
       <Overlay open={profileOpen} onClose={() => setProfileOpen(false)}>
         {({ requestClose }) => (
-          <ProfileScreen requestClose={requestClose} data={viewData} actions={routedActions} showToast={showToast} cloud={cloud} sharedListIds={sharedListIds} />
+          <ProfileScreen requestClose={requestClose} data={viewData} actions={routedActions} showToast={showToast} cloud={cloud} cloudListIds={cloudListIds} />
         )}
       </Overlay>
 
