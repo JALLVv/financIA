@@ -835,26 +835,68 @@ function Segmented({ options, value, onChange, renderExtra, className }) {
   );
 }
 
-/* Bloqueo del scroll del fondo mientras hay una hoja o pantalla abierta:
-   evita que iOS desplace la app principal al abrir el teclado (la hoja
-   y el fondo quedan separados). */
-let bodyLockCount = 0;
-/* Con el scroll en .fin-scroll, bloquearlo es solo ocultar su overflow:
-   el navegador conserva scrollTop, así que no hay saltos, franjas ni
-   desplazamientos del fondo al abrir hojas o el teclado. */
-const scrollEl = () => document.querySelector(".fin-scroll");
-function lockBodyScroll() {
-  if (++bodyLockCount > 1) return;
-  const el = scrollEl();
-  /* touch-action además del overflow: en iOS el overflow:hidden no siempre
-     frena el arrastre con el dedo sobre un contenedor con inercia */
-  if (el) { el.style.overflowY = "hidden"; el.style.touchAction = "none"; }
+const Z_BASE = 60, Z_MAX_LEVELS = 8;
+
+/* ---------------- Pila de capas ----------------
+
+   Cada menú abierto es una capa, y todo lo que queda por debajo de la capa
+   superior sale del alcance del usuario: se marca `inert`, que es el
+   mecanismo del navegador para "esto ya no forma parte de la página" — no
+   recibe toques, ni foco, ni lo lee el lector de pantalla— y además se le
+   corta el scroll.
+
+   Antes sólo se ocultaba el overflow de .fin-scroll, así que una hoja
+   abierta desde el perfil dejaba el perfil desplazándose por detrás, y el
+   fondo oscuro sólo tapaba por pintura, no por interacción. */
+const layers = [];
+const layerSubs = new Set();
+
+function setInert(el, on) {
+  if (!el) return;
+  if (on) el.setAttribute("inert", "");
+  else el.removeAttribute("inert");
 }
-function unlockBodyScroll() {
-  if (--bodyLockCount > 0) return;
-  bodyLockCount = 0;
-  const el = scrollEl();
-  if (el) { el.style.overflowY = ""; el.style.touchAction = ""; }
+function setScrollable(el, on) {
+  if (!el) return;
+  el.style.overflowY = on ? "" : "hidden";
+  el.style.touchAction = on ? "" : "none";
+}
+
+function applyLayers() {
+  const top = layers.length ? layers[layers.length - 1] : null;
+  for (const l of layers) for (const el of l.get()) setInert(el, l !== top);
+  /* el contenido de la página no es ninguna capa: se apaga en cuanto hay una */
+  const hay = layers.length > 0;
+  for (const el of document.querySelectorAll(".fin-scroll, .fab")) {
+    setInert(el, hay);
+    setScrollable(el, !hay);
+  }
+  layerSubs.forEach((f) => f());
+}
+
+function useLayer(active, get) {
+  const [, force] = useState(0);
+  const entry = useRef(null);
+  useEffect(() => {
+    if (!active) return;
+    const e = { get };
+    entry.current = e;
+    layers.push(e);
+    const sub = () => force((n) => n + 1);
+    layerSubs.add(sub);
+    applyLayers();
+    return () => {
+      layerSubs.delete(sub);
+      const i = layers.indexOf(e);
+      if (i >= 0) layers.splice(i, 1);
+      for (const el of get()) setInert(el, false);
+      entry.current = null;
+      applyLayers();
+    };
+  }, [active]);
+  const i = entry.current ? layers.indexOf(entry.current) : -1;
+  const level = Math.min(i >= 0 ? i + 1 : 1, Z_MAX_LEVELS);
+  return { backdrop: Z_BASE + level * 2 - 1, front: Z_BASE + level * 2 };
 }
 
 /* Alto del teclado: la reducción del viewport visual respecto a la ventana.
@@ -898,23 +940,6 @@ function keyboardHeight() {
   return Math.min(h, Math.round(vh * 0.7));  // ningún teclado ocupa más
 }
 
-/* Cada hoja abierta es una capa propia: la que se abre encima tapa por
-   completo a la de debajo, incluidos sus toques. Antes todas compartían el
-   mismo z-index y sólo el orden del DOM decidía, así que la hoja de abajo
-   quedaba por encima del fondo oscuro de la de arriba. */
-const Z_BASE = 60, Z_MAX_LEVELS = 8;
-let layerCount = 0;
-function useLayer(active) {
-  const [level, setLevel] = useState(1);
-  useEffect(() => {
-    if (!active) return;
-    layerCount = Math.min(layerCount + 1, Z_MAX_LEVELS);
-    setLevel(layerCount);
-    return () => { layerCount = Math.max(0, layerCount - 1); };
-  }, [active]);
-  return { backdrop: Z_BASE + level * 2 - 1, front: Z_BASE + level * 2 };
-}
-
 /* Hoja modal estilo iOS con animación de cierre.
    Se eleva con el teclado (visualViewport) para que los campos no queden tapados. */
 function Sheet({ open, onClose, title, children, footer }) {
@@ -924,7 +949,9 @@ function Sheet({ open, onClose, title, children, footer }) {
   const [avail, setAvail] = useState(0);
   const [animDone, setAnimDone] = useState(false);
   const sheetRef = useRef(null);
-  const z = useLayer(mounted);
+  const backdropRef = useRef(null);
+  const getNodes = useCallback(() => [backdropRef.current, sheetRef.current], []);
+  const z = useLayer(mounted, getNodes);
   useEffect(() => {
     if (open) { setMounted(true); setClosing(false); setAnimDone(false); }
     else if (mounted) {
@@ -935,11 +962,10 @@ function Sheet({ open, onClose, title, children, footer }) {
   }, [open]);
   useEffect(() => {
     if (!mounted) return;
-    lockBodyScroll();
     /* si el evento de fin de animación no llega (movimiento reducido, pestaña
-       en segundo plano…), la hoja nunca se elevaría sobre el teclado */
+       en segundo plano…), la hoja nunca ajustaría su relleno */
     const t = setTimeout(() => setAnimDone(true), 420);
-    return () => { clearTimeout(t); unlockBodyScroll(); };
+    return () => clearTimeout(t);
   }, [mounted]);
   /* alto del teclado: solo la reducción del visual viewport (con el fondo
      bloqueado, el desplazamiento no entra en el cálculo → valor estable).
@@ -991,7 +1017,7 @@ function Sheet({ open, onClose, title, children, footer }) {
   const visible = avail ? Math.max(200, avail - 20) : 0;
   return (
     <>
-      <div className={`sheet-backdrop ${closing ? "closing" : ""}`} style={{ zIndex: z.backdrop }} onClick={onClose} />
+      <div ref={backdropRef} className={`sheet-backdrop ${closing ? "closing" : ""}`} style={{ zIndex: z.backdrop }} onClick={onClose} />
       <div ref={sheetRef} className={`sheet ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={title}
         onFocusCapture={onFieldFocus}
         onAnimationEnd={(e) => { if (e.target === e.currentTarget) setAnimDone(true); }}
@@ -1022,6 +1048,9 @@ function Overlay({ open, onClose, children }) {
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
   const [kb, setKb] = useState(0);
+  const rootRef = useRef(null);
+  const getNodes = useCallback(() => [rootRef.current], []);
+  const z = useLayer(mounted, getNodes);
   useEffect(() => {
     if (open) { setMounted(true); setClosing(false); }
     else if (mounted) {
@@ -1030,11 +1059,6 @@ function Overlay({ open, onClose, children }) {
       return () => clearTimeout(t);
     }
   }, [open]);
-  useEffect(() => {
-    if (!mounted) return;
-    lockBodyScroll();
-    return () => unlockBodyScroll();
-  }, [mounted]);
   /* espacio inferior igual al teclado para que ningún campo quede tapado */
   useEffect(() => {
     if (!mounted || typeof window === "undefined" || !window.visualViewport) return;
@@ -1052,7 +1076,7 @@ function Overlay({ open, onClose, children }) {
   }, [mounted]);
   if (!mounted) return null;
   return (
-    <div className={`overlay ${closing ? "closing" : ""}`} style={{ "--kb": `${kb}px` }}
+    <div ref={rootRef} className={`overlay ${closing ? "closing" : ""}`} style={{ "--kb": `${kb}px`, zIndex: Math.max(70, z.front) }}
       onFocusCapture={(e) => {
         const t = e.target;
         if (!t || !/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
