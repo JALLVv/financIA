@@ -43,7 +43,13 @@ html,body{overscroll-behavior:none;}
      una hoja— movía la app entera.
      OJO: no añadir overflow:hidden a html/body para esto. Safari recorta a
      esa caja los position:fixed descendientes y desaparece media interfaz. */
-  position:fixed; left:0; right:0; top:0; height:100dvh; overflow:visible;
+  position:fixed; left:0; right:0; top:0; overflow:visible;
+  /* lvh y no dvh: con la barra de estado translúcida iOS entrega a veces un
+     dvh de 797 aunque la pantalla sean 844, y la app se quedaba corta por
+     abajo — la franja. El alto "grande" (lvh) daba 844 en todas las
+     mediciones del dispositivo. Fija, además, para no aportar nada al
+     desbordamiento del documento aunque supere el viewport de maquetación. */
+  height:100vh; height:100lvh;
   -webkit-font-smoothing:antialiased;
   font-feature-settings:"tnum" 1;
 }
@@ -219,15 +225,18 @@ input::placeholder{color:var(--txt3);}
 /* ---------- sheets ---------- */
 /* sin desenfoque: era una capa a pantalla completa que iOS tiene que
    rasterizar de nuevo cada vez que se mueve el teclado */
+/* absolute y no fixed: se anclan a .fin-app, que mide la pantalla entera.
+   Con fixed se anclaban al viewport de maquetación, más corto en iOS, y
+   se quedaban a 47 px del borde inferior. */
 .sheet-backdrop{
-  position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.58);
+  position:absolute; inset:0; z-index:60; background:rgba(0,0,0,.58);
   touch-action:none; overscroll-behavior:none;
   animation:fadeIn .3s ease both;
 }
 .sheet-backdrop.closing{animation:fadeOut .28s ease both;}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}} @keyframes fadeOut{from{opacity:1}to{opacity:0}}
 .sheet{
-  position:fixed; left:0; right:0; bottom:0; z-index:61; margin:0 auto; max-width:520px;
+  position:absolute; left:0; right:0; bottom:0; z-index:61; margin:0 auto; max-width:520px;
   background:var(--glass); backdrop-filter:blur(28px) saturate(170%); -webkit-backdrop-filter:blur(28px) saturate(170%);
   border:1px solid var(--line2); border-bottom:none; border-radius:26px 26px 0 0;
   padding:10px 20px calc(22px + env(safe-area-inset-bottom));
@@ -350,7 +359,7 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 
 /* ---------- search ---------- */
 .overlay{
-  position:fixed; inset:0; z-index:70; background:var(--bg); display:flex; flex-direction:column;
+  position:absolute; inset:0; z-index:70; background:var(--bg); display:flex; flex-direction:column;
   animation:overlayIn .3s var(--ease-ios) both; max-width:100%;
 }
 .overlay.closing{animation:overlayOut .22s var(--ease-ios) both;}
@@ -939,15 +948,11 @@ const KB_MIN = 120;
    visible) y mezclarlo con visualViewport elevaba la hoja de más, dejándola
    pegada al borde superior. La sonda vive en el mismo sistema de
    coordenadas que la hoja, así que no puede desajustarse. */
-let kbProbe = null;
 function layoutViewportHeight() {
-  if (typeof document === "undefined" || !document.body) return 0;
-  if (!kbProbe || !kbProbe.isConnected) {
-    kbProbe = document.createElement("div");
-    kbProbe.style.cssText = "position:fixed;top:0;left:0;width:0;height:100%;visibility:hidden;pointer-events:none";
-    document.body.appendChild(kbProbe);
-  }
-  return kbProbe.getBoundingClientRect().height;
+  if (typeof document === "undefined") return 0;
+  /* la misma caja a la que se anclan las hojas, para que no puedan discrepar */
+  const app = document.querySelector(".fin-app");
+  return app ? app.getBoundingClientRect().height : 0;
 }
 
 function keyboardHeight() {
@@ -3435,7 +3440,7 @@ export default function App() {
 
       {/* visor de foto a pantalla completa */}
       {photoView && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 95, background: "rgba(0,0,0,.94)", display: "grid", placeItems: "center", padding: 16 }}
+        <div style={{ position: "absolute", inset: 0, zIndex: 95, background: "rgba(0,0,0,.94)", display: "grid", placeItems: "center", padding: 16 }}
           onClick={() => setPhotoView(null)} role="dialog" aria-label="Foto adjunta">
           <img src={photoView} alt="Foto adjunta" style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 12 }} />
           <button className="sheet-close" style={{ position: "absolute", top: "calc(16px + env(safe-area-inset-top))", right: 16 }}
