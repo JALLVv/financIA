@@ -11,15 +11,15 @@
   <link rel="apple-touch-icon" href="./icons/icon-180.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <!-- "black-translucent": la app dibuja también bajo la barra de estado.
-       Con "default" el sistema se reservaba esa tira y la pintaba él, así que
-       el velo oscuro de los menús no llegaba hasta ahí y quedaba una franja
-       del color del fondo justo donde el reloj.
-       Antes esto provocaba 47 px muertos abajo, pero aquella combinación ya
-       no existe: .fin-app es fija con height:100dvh, así que se adapta al
-       alto que entregue iOS, no hay desbordamiento del documento y nada
-       recorta las capas fijas. -->
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- "default" y no "black-translucent". Probado en el dispositivo: con la
+       barra translúcida iOS entrega a la vista web 797 px de los 844 de
+       pantalla y la ancla arriba, dejando 47 px muertos abajo que no se
+       pueden pintar (lvh dice 844, pero esos píxeles caen fuera de la vista).
+       Con "default" entrega los mismos 797 px pero colocados bajo la barra,
+       sin hueco. A cambio, esa tira la pinta el sistema y el velo de los
+       menús no llega: se compensa con un velo más suave y desenfocado, que
+       es como estuvo semanas sin que se notara. -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Finanzas">
   <link rel="preload" href="./fonts/nunito-latin.woff2" as="font" type="font/woff2" crossorigin>
   <style>

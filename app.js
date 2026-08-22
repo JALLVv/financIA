@@ -69,12 +69,10 @@ html,body{overscroll-behavior:none;}
      OJO: no a\xF1adir overflow:hidden a html/body para esto. Safari recorta a
      esa caja los position:fixed descendientes y desaparece media interfaz. */
   position:fixed; left:0; right:0; top:0; overflow:visible;
-  /* lvh y no dvh: con la barra de estado transl\xFAcida iOS entrega a veces un
-     dvh de 797 aunque la pantalla sean 844, y la app se quedaba corta por
-     abajo \u2014 la franja. El alto "grande" (lvh) daba 844 en todas las
-     mediciones del dispositivo. Fija, adem\xE1s, para no aportar nada al
-     desbordamiento del documento aunque supere el viewport de maquetaci\xF3n. */
-  height:100vh; height:100lvh;
+  /* dvh y no lvh: con la barra de estado reservada, el dvh es exactamente
+     el alto de la vista web. Con lvh la app sobrepasar\xEDa la vista y su parte
+     inferior caer\xEDa fuera de la pantalla. */
+  height:100dvh;
   -webkit-font-smoothing:antialiased;
   font-feature-settings:"tnum" 1;
 }
@@ -248,13 +246,17 @@ input::placeholder{color:var(--txt3);}
 .fab:active{transform:scale(.88) rotate(-10deg); box-shadow:0 4px 12px rgba(0,0,0,.3);}
 
 /* ---------- sheets ---------- */
-/* sin desenfoque: era una capa a pantalla completa que iOS tiene que
-   rasterizar de nuevo cada vez que se mueve el teclado */
+/* velo suave y desenfocado. La tira de la barra de estado la pinta iOS con
+   el color de fondo y no se puede oscurecer, as\xED que cuanto menos oscurezca
+   el velo, menos destaca esa costura. El desenfoque adem\xE1s la difumina. Ya
+   no cuesta lo que costaba: la hoja dej\xF3 de moverse con el teclado, as\xED que
+   esta capa no se re-rasteriza en cada gesto. */
 /* absolute y no fixed: se anclan a .fin-app, que mide la pantalla entera.
    Con fixed se anclaban al viewport de maquetaci\xF3n, m\xE1s corto en iOS, y
    se quedaban a 47 px del borde inferior. */
 .sheet-backdrop{
-  position:absolute; inset:0; z-index:60; background:rgba(0,0,0,.58);
+  position:absolute; inset:0; z-index:60; background:rgba(0,0,0,.46);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
   touch-action:none; overscroll-behavior:none;
   animation:fadeIn .3s ease both;
 }
