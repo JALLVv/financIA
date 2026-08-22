@@ -32,10 +32,14 @@ html,body,#root{height:100%;}
 .fin-app{
   font-family:"Nunito",ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",sans-serif;
   background:var(--bg); color:var(--txt);
-  /* posición normal: con la barra de estado ya no translúcida, el dvh y el
-     viewport de maquetación coinciden, así que la app no desborda el
-     documento y no hace falta fijarla (fijarla enredaba al teclado) */
-  position:relative; width:100%; height:100dvh; min-height:100dvh; overflow:visible;
+  /* Fija: un elemento fijo no aporta nada al desbordamiento del documento,
+     así que no queda página que arrastrar. Con posición normal, sus 100dvh
+     dentro de un viewport de maquetación más corto dejaban el documento
+     desplazable, y arrastrar en cualquier sitio —incluido el fondo oscuro de
+     una hoja— movía la app entera.
+     OJO: no añadir overflow:hidden a html/body para esto. Safari recorta a
+     esa caja los position:fixed descendientes y desaparece media interfaz. */
+  position:fixed; left:0; right:0; top:0; height:100dvh; overflow:visible;
   -webkit-font-smoothing:antialiased;
   font-feature-settings:"tnum" 1;
 }
@@ -862,6 +866,17 @@ function setScrollable(el, on) {
   el.style.touchAction = on ? "" : "none";
 }
 
+/* iOS pinta la tira de la barra de estado con el theme-color, y el
+   oscurecido de las hojas no llega hasta ahí: al abrir un menú quedaba una
+   franja del color del fondo justo donde el reloj. Se cambia el color
+   mientras hay un menú abierto por el del fondo ya oscurecido. */
+const TEMA_NORMAL = "#16161A";
+const TEMA_OSCURECIDO = "#09090B";   // #16161A bajo el velo rgba(0,0,0,.58)
+function setThemeColor(c) {
+  const m = typeof document !== "undefined" && document.querySelector('meta[name="theme-color"]');
+  if (m && m.content !== c) m.content = c;
+}
+
 function applyLayers() {
   const top = layers.length ? layers[layers.length - 1] : null;
   for (const l of layers) for (const el of l.get()) setInert(el, l !== top);
@@ -871,6 +886,7 @@ function applyLayers() {
     setInert(el, hay);
     setScrollable(el, !hay);
   }
+  setThemeColor(hay ? TEMA_OSCURECIDO : TEMA_NORMAL);
   layerSubs.forEach((f) => f());
 }
 
