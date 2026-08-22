@@ -221,17 +221,22 @@ input::placeholder{color:var(--txt3);}
 .fab:active{transform:scale(.88) rotate(-10deg); box-shadow:0 4px 12px rgba(0,0,0,.3);}
 
 /* ---------- sheets ---------- */
-/* velo suave y desenfocado. La tira de la barra de estado la pinta iOS con
-   el color de fondo y no se puede oscurecer, así que cuanto menos oscurezca
-   el velo, menos destaca esa costura. El desenfoque además la difumina. Ya
-   no cuesta lo que costaba: la hoja dejó de moverse con el teclado, así que
-   esta capa no se re-rasteriza en cada gesto. */
+/* Velo suave y desenfocado, que se desvanece en el borde superior.
+
+   La tira de la barra de estado la pinta iOS con el color de fondo y no hay
+   forma de oscurecerla desde la app: el theme-color lo lee al arrancar y no
+   atiende a cambios. Así que en vez de oscurecerla, se deja sin oscurecer el
+   primer tramo de la app: su borde superior conserva el mismo color que la
+   tira y la costura entre ambas desaparece. La máscara desvanece también el
+   desenfoque, para que ese tramo quede idéntico al fondo. */
 /* absolute y no fixed: se anclan a .fin-app, que mide la pantalla entera.
    Con fixed se anclaban al viewport de maquetación, más corto en iOS, y
    se quedaban a 47 px del borde inferior. */
 .sheet-backdrop{
   position:absolute; inset:0; z-index:60; background:rgba(0,0,0,.46);
   backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  mask:linear-gradient(180deg, transparent 0, #000 38px);
+  -webkit-mask:linear-gradient(180deg, transparent 0, #000 38px);
   touch-action:none; overscroll-behavior:none;
   animation:fadeIn .3s ease both;
 }
@@ -414,6 +419,8 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 .chev.open{transform:rotate(90deg);}
 .disc-body{border-top:1px solid var(--line); animation:discIn .26s var(--ease-ios) both; overflow:hidden;}
 @keyframes discIn{from{opacity:0; transform:translateY(-6px)}to{opacity:1; transform:none}}
+.total-row{cursor:default; -webkit-user-select:none; user-select:none;}
+.total-row:active{transform:none; background:var(--card);}
 .add-row{display:flex; align-items:center; gap:10px; width:100%; padding:13px 16px; color:var(--accent); font-weight:700; font-size:15px; transition:background .15s;}
 .add-row:active{background:var(--card2);}
 .mini-actions{display:flex; gap:6px; flex:none;}
@@ -2198,6 +2205,13 @@ function ListSheet({ open, onClose, data, onSelect, onCreate, canShare }) {
     return m;
   }, [data.transactions]);
 
+  /* suma de todas las listas, contando sólo las que existen */
+  const totalColor = useMemo(() => colorFromEmoji("💯"), []);
+  const totalAll = useMemo(
+    () => data.lists.reduce((s2, l) => s2 + (balances.get(l.id) || 0), 0),
+    [data.lists, balances]
+  );
+
   return (
     <>
     <Sheet open={open} onClose={onClose} title="Mis listas">
@@ -2218,6 +2232,20 @@ function ListSheet({ open, onClose, data, onSelect, onCreate, canShare }) {
           );
         })}
       </div>
+      {data.lists.length > 1 && (
+        /* total de todas las listas: se ve como una fila más pero no se abre,
+           su única función es el número */
+        <div className="f-group" style={{ marginTop: 10 }}>
+          <div className="row-pick total-row">
+            <EmojiBubble emoji="💯" color={totalColor} size={40} />
+            <div className="r-main">Todas las listas
+              <div className="r-sub" style={{ color: totalAll > 0.004 ? "var(--green)" : totalAll < -0.004 ? "var(--red)" : "var(--txt3)" }}>
+                {(totalAll > 0.004 ? "+" : totalAll < -0.004 ? "−" : "") + fmt(Math.abs(totalAll))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <button className="add-row" style={{ borderRadius: 18, background: "var(--card)", border: "1px solid var(--line)" }}
         onClick={() => { haptic(); setFormOpen(true); }}>
         <Icon name="plus" size={17} /> Nueva lista
