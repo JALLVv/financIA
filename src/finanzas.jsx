@@ -23,6 +23,10 @@ const CSS = `
 /* la cadena de alturas viaja con la app, no sólo en el index.html: así el
    100% de .fin-app siempre resuelve aunque el HTML en caché sea viejo */
 html,body,#root{height:100%;}
+/* sin rebote elástico de la página: al no poder desplazarse, un arrastre
+   hacía rebotar el viewport y el toque siguiente se consumía al asentarse
+   —de ahí el "hay que tocar dos veces" tras intentar hacer scroll */
+html,body{overscroll-behavior:none;}
 /* OJO: nunca poner overflow:hidden en html/body. Safari recorta a esa caja
    todos los position:fixed descendientes —la app y las hojas—, y como el
    documento mide 797 frente a los 844 de la pantalla, eso deja una franja
@@ -46,7 +50,7 @@ html,body,#root{height:100%;}
 /* el scroll vive aquí: bloquearlo no altera la posición ni el fondo */
 .fin-scroll{
   position:relative; z-index:1; height:100%; overflow-y:auto; overflow-x:hidden;
-  overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
+  overscroll-behavior:none; -webkit-overflow-scrolling:touch;
   padding:0 20px calc(120px + env(safe-area-inset-bottom)); max-width:520px; margin:0 auto;
 }
 button{font:inherit; color:inherit; border:none; background:none; padding:0; cursor:pointer;}
@@ -239,7 +243,7 @@ input::placeholder{color:var(--txt3);}
 .sheet-title{font-size:19px;font-weight:800;letter-spacing:-.01em;}
 .sheet-close{width:30px;height:30px;border-radius:50%;background:var(--card3);display:grid;place-items:center;color:var(--txt2);transition:transform .25s var(--spring);}
 .sheet-close:active{transform:scale(.88);}
-.sheet-body{overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; flex:1; min-height:0; padding-bottom:4px;}
+.sheet-body{overflow-y:auto; overscroll-behavior:none; touch-action:pan-y; -webkit-overflow-scrolling:touch; flex:1; min-height:0; padding-bottom:4px;}
 
 /* ---------- forms ---------- */
 .f-group{background:var(--card); border:1px solid var(--line); border-radius:18px; overflow:hidden; margin-bottom:14px;}
@@ -353,7 +357,7 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 @keyframes overlayIn{from{opacity:0; transform:translateY(4%) scale(.98)}to{opacity:1; transform:none}}
 @keyframes overlayOut{from{opacity:1}to{opacity:0; transform:translateY(3%) scale(.98)}}
 .overlay-hdr{display:flex; align-items:center; gap:12px; padding:calc(12px + env(safe-area-inset-top)) 20px 12px; flex:none; max-width:520px; margin:0 auto; width:100%;}
-.overlay-body{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:0 20px calc(40px + env(safe-area-inset-bottom) + var(--kb, 0px)); max-width:520px; margin:0 auto; width:100%; --dateTop:4px;}
+.overlay-body{flex:1; overflow-y:auto; overscroll-behavior:none; touch-action:pan-y; -webkit-overflow-scrolling:touch; padding:0 20px calc(40px + env(safe-area-inset-bottom) + var(--kb, 0px)); max-width:520px; margin:0 auto; width:100%; --dateTop:4px;}
 .search-input-wrap{flex:1; display:flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:10px 14px;}
 .search-input-wrap input{flex:1; background:none; border:none; outline:none; font-size:15px; min-width:0;}
 .cancel-txt{color:var(--accent); font-weight:600; font-size:15px; flex:none;}
