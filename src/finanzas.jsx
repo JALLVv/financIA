@@ -503,6 +503,11 @@ input[type=date].f-input{color-scheme:dark; color:var(--txt2);}
 /* ----------------------- Utilidades ----------------------- */
 const ACCENT = "#E0603F";
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
+
+/* Refugio de los movimientos cuando se elimina su categoría. Mismo nombre,
+   emoji y color que crea delete_category() en la nube, para que una lista
+   local y una de la cuenta se vean igual. */
+const SIN_CAT = { name: "Sin categoría", emoji: "🗂️", color: "#6B6B74" };
 const pad2 = (n) => String(n).padStart(2, "0");
 const toStr = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const todayStr = () => toStr(new Date());
@@ -899,13 +904,32 @@ function setThemeColor(c) {
   if (m && m.content !== c) m.content = c;
 }
 
+/* lo que se apagó en la última pasada, para poder devolverlo tal cual */
+const apagados = new Set();
+
 function applyLayers() {
+  for (const el of apagados) setInert(el, false);
+  apagados.clear();
+
   const top = layers.length ? layers[layers.length - 1] : null;
-  for (const l of layers) for (const el of l.get()) setInert(el, l !== top);
+  const cima = top ? top.get().filter(Boolean) : [];
+
+  /* `inert` se hereda y no hay manera de levantarlo en un descendiente. Las
+     confirmaciones y las hojas que se abren desde el perfil viven DENTRO del
+     perfil, así que apagarlo entero las apagaba con él y sus botones dejaban
+     de responder. Cuando la capa de arriba cuelga de aquí dentro se baja un
+     nivel y se apagan los hermanos, dejando vivo sólo el camino hasta ella. */
+  const apagar = (el) => {
+    if (!el || cima.includes(el)) return;
+    if (!cima.some((v) => el.contains(v))) { setInert(el, true); apagados.add(el); return; }
+    for (const hijo of el.children) apagar(hijo);
+  };
+
+  for (const l of layers) if (l !== top) for (const el of l.get()) apagar(el);
   /* el contenido de la página no es ninguna capa: se apaga en cuanto hay una */
   const hay = layers.length > 0;
   for (const el of document.querySelectorAll(".fin-scroll, .fab")) {
-    setInert(el, hay);
+    if (hay) apagar(el);
     setScrollable(el, !hay);
   }
   setThemeColor(hay ? TEMA_OSCURECIDO : TEMA_NORMAL);
@@ -2584,7 +2608,7 @@ function ProfileScreen({ requestClose, data, actions, showToast, cloud, cloudLis
                   const n = data.transactions.filter((t) => t.categoryId === c.id).length;
                   setConfirm({
                     title: `¿Eliminar “${c.name}”?`,
-                    message: n ? `También se eliminarán ${n} movimiento${n === 1 ? "" : "s"} y sus recurrencias. Esta acción no se puede deshacer.` : "Esta acción no se puede deshacer.",
+                    message: n ? `Sus ${n} movimiento${n === 1 ? "" : "s"} no se pierden: pasan a “${SIN_CAT.name}”.` : "Esta acción no se puede deshacer.",
                     fn: () => { actions.deleteCategory(c.id); showToast("🗑️", "Categoría eliminada"); },
                   });
                 }}>
@@ -2875,12 +2899,24 @@ export default function App() {
       return cat;
     },
     updateCategory: (id, patch) => update((d) => ({ ...d, categories: d.categories.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
-    deleteCategory: (id) => update((d) => ({
-      ...d,
-      categories: d.categories.filter((c) => c.id !== id),
-      transactions: d.transactions.filter((t) => t.categoryId !== id),
-      recurring: d.recurring.filter((r) => r.categoryId !== id),
-    })),
+    /* Quitar una categoría no puede llevarse por delante el dinero anotado:
+       sus movimientos pasan a "Sin categoría" (se crea en esa lista si aún no
+       existe), igual que hace delete_category() en la nube. */
+    deleteCategory: (id) => update((d) => {
+      const cat = d.categories.find((c) => c.id === id);
+      const enUso = !!cat && (d.transactions.some((t) => t.categoryId === id) ||
+                              d.recurring.some((r) => r.categoryId === id));
+      if (!enUso) return { ...d, categories: d.categories.filter((c) => c.id !== id) };
+      let destino = d.categories.find((c) => c.listId === cat.listId && c.id !== id && c.name === SIN_CAT.name);
+      let cats = d.categories;
+      if (!destino) { destino = { id: uid(), listId: cat.listId, ...SIN_CAT }; cats = [...cats, destino]; }
+      return {
+        ...d,
+        categories: cats.filter((c) => c.id !== id),
+        transactions: d.transactions.map((t) => (t.categoryId === id ? { ...t, categoryId: destino.id } : t)),
+        recurring: d.recurring.map((r) => (r.categoryId === id ? { ...r, categoryId: destino.id } : r)),
+      };
+    }),
     addTransaction: (p) => update((d) => {
       if (p.frequency && p.frequency !== "none") {
         const rule = {

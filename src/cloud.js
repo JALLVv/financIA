@@ -115,7 +115,10 @@ export const cloudApi = {
     return mapCat(data);
   },
   updateCategory: (id, patch) => supabase.from("shared_categories").update(patch).eq("id", id),
-  deleteCategory: (id) => supabase.from("shared_categories").delete().eq("id", id),
+  /* borrar la categoría a secas arrastraba sus movimientos (la clave ajena va
+     con "on delete cascade"). La función los pone antes a salvo en
+     "Sin categoría" y devuelve cuántos movió. */
+  deleteCategory: (id) => supabase.rpc("delete_category", { cat_id: id }),
 
   addTransaction: (uid, p) => supabase.from("shared_transactions").insert({
     list_id: p.listId, category_id: p.categoryId, author: uid,

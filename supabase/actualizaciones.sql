@@ -323,3 +323,54 @@ begin
 
   return n;
 end $$;
+
+-- ============================================================
+-- 2026-08-31: eliminar una categoría deja de borrar sus movimientos
+--
+-- shared_transactions.category_id tenía "on delete cascade": borrar una
+-- categoría destruía en silencio todos sus movimientos, sin vuelta atrás.
+-- En una app de dinero eso no puede pasar por un descuido. Ahora los
+-- movimientos pasan a "Sin categoría" (se crea en la lista si no existe) y
+-- sólo después se borra la categoría.
+--
+-- Para que no quede ninguna otra puerta, se retira el permiso de borrado
+-- directo sobre shared_categories: la única vía es esta función. El borrado
+-- en cascada al eliminar una lista entera sigue funcionando (las acciones
+-- referenciales no pasan por RLS).
+-- ============================================================
+create or replace function public.delete_category(cat_id uuid)
+returns integer language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := auth.uid();
+  lid uuid;
+  destino uuid;
+  movidos integer := 0;
+begin
+  if me is null then raise exception 'No autenticado'; end if;
+  select list_id into lid from shared_categories where id = cat_id;
+  if lid is null then return 0; end if;
+  if not is_list_member(lid, me) then raise exception 'Sin permiso sobre esa lista'; end if;
+
+  if exists (select 1 from shared_transactions where category_id = cat_id)
+     or exists (select 1 from recurring_rules where category_id = cat_id) then
+    /* "id <> cat_id": si lo que se borra es la propia "Sin categoría", se crea
+       otra para recogerlos. Se ve raro, pero antes que dejar huérfano un
+       movimiento es preferible que el borrado no parezca hacer nada. */
+    select id into destino from shared_categories
+      where list_id = lid and id <> cat_id and name = 'Sin categoría'
+      order by created_at limit 1;
+    if destino is null then
+      insert into shared_categories (list_id, name, emoji, color)
+        values (lid, 'Sin categoría', '🗂️', '#6B6B74') returning id into destino;
+    end if;
+    update shared_transactions set category_id = destino where category_id = cat_id;
+    get diagnostics movidos = row_count;
+    update recurring_rules set category_id = destino where category_id = cat_id;
+  end if;
+
+  delete from shared_categories where id = cat_id;
+  return movidos;
+end $$;
+
+-- el borrado directo deja de estar permitido: obliga a pasar por la función
+drop policy if exists "shared_categories_delete" on public.shared_categories;

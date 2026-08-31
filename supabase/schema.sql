@@ -140,8 +140,8 @@ create policy "shared_categories_insert" on public.shared_categories
   for insert to authenticated with check (public.is_list_member(list_id, auth.uid()));
 create policy "shared_categories_update" on public.shared_categories
   for update to authenticated using (public.is_list_member(list_id, auth.uid()));
-create policy "shared_categories_delete" on public.shared_categories
-  for delete to authenticated using (public.is_list_member(list_id, auth.uid()));
+-- sin permiso de borrado directo: se borra con public.delete_category(), que
+-- antes pone a salvo los movimientos de esa categoría
 
 create policy "shared_transactions_select" on public.shared_transactions
   for select to authenticated using (public.is_list_member(list_id, auth.uid()));
@@ -538,3 +538,44 @@ begin
   get diagnostics hit = row_count;
   return hit > 0;
 end $$;
+
+-- ---------------- borrar una categoría sin perder sus movimientos ----------------
+-- shared_transactions.category_id va con "on delete cascade", así que un
+-- borrado directo destruiría los movimientos. Ésta es la única vía permitida
+-- (shared_categories no tiene política de delete): pasa los movimientos a
+-- "Sin categoría" y sólo entonces borra.
+create or replace function public.delete_category(cat_id uuid)
+returns integer language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := auth.uid();
+  lid uuid;
+  destino uuid;
+  movidos integer := 0;
+begin
+  if me is null then raise exception 'No autenticado'; end if;
+  select list_id into lid from shared_categories where id = cat_id;
+  if lid is null then return 0; end if;
+  if not is_list_member(lid, me) then raise exception 'Sin permiso sobre esa lista'; end if;
+
+  if exists (select 1 from shared_transactions where category_id = cat_id)
+     or exists (select 1 from recurring_rules where category_id = cat_id) then
+    /* "id <> cat_id": si lo que se borra es la propia "Sin categoría", se crea
+       otra para recogerlos. Se ve raro, pero antes que dejar huérfano un
+       movimiento es preferible que el borrado no parezca hacer nada. */
+    select id into destino from shared_categories
+      where list_id = lid and id <> cat_id and name = 'Sin categoría'
+      order by created_at limit 1;
+    if destino is null then
+      insert into shared_categories (list_id, name, emoji, color)
+        values (lid, 'Sin categoría', '🗂️', '#6B6B74') returning id into destino;
+    end if;
+    update shared_transactions set category_id = destino where category_id = cat_id;
+    get diagnostics movidos = row_count;
+    update recurring_rules set category_id = destino where category_id = cat_id;
+  end if;
+
+  delete from shared_categories where id = cat_id;
+  return movidos;
+end $$;
+
+-- el borrado directo deja de estar permitido: obliga a pasar por la función
