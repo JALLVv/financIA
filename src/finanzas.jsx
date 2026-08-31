@@ -2841,8 +2841,11 @@ export default function App() {
 
   /* cualquier cambio deja de ser el estado de ejemplo: así, al iniciar
      sesión, no se sube a la cuenta una lista de ejemplo que nadie tocó */
-  const update = useCallback((fn) => {
-    setData((d) => { const nd = { ...fn(d), pristine: false }; persist(nd); return nd; });
+  const update = useCallback((fn, conservarPristine) => {
+    setData((d) => {
+      const nd = { ...fn(d), pristine: conservarPristine ? d.pristine : false };
+      persist(nd); return nd;
+    });
   }, []);
 
   /* ----------------- acciones ----------------- */
@@ -2915,6 +2918,12 @@ export default function App() {
       ...d,
       recurring: d.recurring.map((r) => (r.id === id ? { ...r, nextDate } : r)),
     })),
+    /* lista de arranque cuando no queda ninguna: no marca el estado como
+       tocado por el usuario, para que no acabe subiéndose a la cuenta */
+    createStarterList: () => update((d) => {
+      const l = { id: uid(), name: "Personal" };
+      return { ...d, lists: [...d.lists, l], activeListId: l.id };
+    }, true),
     /* tras subir los datos a la cuenta, el dispositivo deja de ser el dueño */
     clearLocalData: () => update((d) => ({ ...d, lists: [], categories: [], transactions: [], recurring: [] })),
   }), [update]);
@@ -3053,10 +3062,16 @@ export default function App() {
     migratingRef.current = true;
     (async () => {
       try {
-        const ids = new Set(mine.map((l) => l.id));
+        /* una lista sin un solo movimiento ni repetición no es dato del usuario:
+         subirla sólo crea listas fantasma en la cuenta */
+      const conContenido = mine.filter((l) =>
+        data.transactions.some((t) => t.listId === l.id) ||
+        data.recurring.some((r) => r.listId === l.id || r.toListId === l.id));
+      if (!conContenido.length) { actions.clearLocalData(); return; }
+      const ids = new Set(conContenido.map((l) => l.id));
         try { await window.storage.set(STORE_KEY + "_respaldo", JSON.stringify(data)); } catch (e) {}
         const n = await cloud.api.importLocalData({
-          lists: mine.map((l) => ({ id: l.id, name: l.name })),
+          lists: conContenido.map((l) => ({ id: l.id, name: l.name })),
           categories: data.categories.filter((c) => ids.has(c.listId)),
           transactions: data.transactions.filter((t) => ids.has(t.listId)),
           recurring: data.recurring.filter((r) => ids.has(r.listId)),
@@ -3080,7 +3095,7 @@ export default function App() {
     if (data.lists.length || creatingListRef.current) return;
     creatingListRef.current = true;
     migratedRef.current = null;
-    actions.createList("Personal");
+    actions.createStarterList();
     creatingListRef.current = false;
   }, [cloud.ready, cloud.uid, data && data.lists.length, actions]);
 
